@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -20,7 +21,7 @@ class UserController extends Controller
             'old_password' => 'required|string|min:4',
             'password' => 'required|string|min:4|confirmed',
         ]);
-        
+
         $user = $request->user();
         if (!Hash::check($request->old_password, $user->password)) {
             return response()->json([
@@ -38,7 +39,7 @@ class UserController extends Controller
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-        
+
         $request->validate([
             'first_name' => 'sometimes|string|max:100',
             'last_name' => 'sometimes|string|max:100',
@@ -54,25 +55,57 @@ class UserController extends Controller
             'show_phone' => 'sometimes|boolean',
             'show_location' => 'sometimes|boolean',
         ]);
-        
+
         // Update only the fields that are present in the request
         $updatableFields = [
             'first_name', 'last_name', 'email', 'phone_number', 'about_me',
             'country_id', 'state_id', 'city_id', 'address', 'zip_code',
             'show_email', 'show_phone', 'show_location'
         ];
-        
+
         foreach ($updatableFields as $field) {
             if ($request->has($field)) {
                 $user->$field = $request->input($field);
             }
         }
-        
+
         $user->save();
-        
+
         return response()->json([
             'message' => 'Profile updated successfully',
             'user' => $user->fresh(),
+        ]);
+    }
+
+    public function checkUsername(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string|max:255'
+        ]);
+
+        $username = $request->username;
+
+        // Check if username exists
+        $exists = User::where('username', $username)->exists();
+
+        if (!$exists) {
+            return response()->json([
+                'available' => true,
+                'message'   => 'Username is available',
+                'username'  => $username
+            ]);
+        }
+
+        // Generate 3 suggestions
+        $suggestions = [];
+        for ($i = 0; $i < 3; $i++) {
+            $suggestions[] = $username . rand(10, 9999);
+        }
+
+        return response()->json([
+            'available'    => false,
+            'message'      => 'Username already taken',
+            'suggestions'  => $suggestions
         ]);
     }
 }

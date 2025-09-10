@@ -373,27 +373,37 @@ class User extends Authenticatable
     public function getFullAddressAttribute()
     {
         $address = [];
-        
+
         if ($this->address) {
             $address[] = $this->address;
         }
-        
+
         if ($this->city) {
             $address[] = $this->city->name;
         }
-        
+
         if ($this->state) {
             $address[] = $this->state->name;
         }
-        
+
         if ($this->zip_code) {
             $address[] = $this->zip_code;
         }
-        
+
         if ($this->country) {
             $address[] = $this->country->name;
         }
-        
+
         return implode(', ', $address);
+    }
+
+    public function sizes()
+    {
+        return $this->hasMany(UserSize::class);
+    }
+
+    public function brands()
+    {
+        return $this->hasMany(UserBrand::class);
     }
 }

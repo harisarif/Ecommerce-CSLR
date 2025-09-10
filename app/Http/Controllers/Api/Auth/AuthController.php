@@ -12,9 +12,63 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use App\Models\EmailLoginToken;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\EmailLoginLinkMail;
 
 class AuthController extends Controller
 {
+
+    public function emailLoginRequest(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $email = $request->email;
+        $token = Str::random(64);
+
+        EmailLoginToken::create([
+            'email' => $email,
+            'token' => $token,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+       $link = url("/api/v1/auth/email-login-verify?token=$token");
+
+        // Send styled email
+        Mail::to($email)->send(new EmailLoginLinkMail($link));
+
+        $exists = User::where('email', $email)->exists();
+
+        return response()->json([
+            'message' => 'Verification link sent to your email',
+            'is_new_user' => !$exists,
+        ]);
+    }
+
+    public function emailLoginVerify(Request $request)
+    {
+        $token = $request->query('token');
+        $record = EmailLoginToken::where('token', $token)->first();
+
+        if (!$record || $record->isExpired()) {
+            return response()->json(['message' => 'Invalid or expired token'], 422);
+        }
+
+        $user = User::where('email', $record->email)->first();
+
+        if ($user) {
+            // Existing user → login
+            $apiToken = $user->createToken('auth-token')->plainTextToken;
+            $record->delete();
+
+            return redirect()->away("myapp://login-success?token=$apiToken");
+        } else {
+            return redirect()->away("myapp://signup?email={$record->email}");
+        }
+    }
+
     public function register(Request $request)
     {
         $request->validate([
@@ -36,6 +90,86 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'User registered successfully',
             'user' => $user,
+            'access_token' => $token,
+        ]);
+    }
+
+
+    public function registerVendor(Request $request)
+    {
+        $request->validate([
+            'first_name'      => 'required|string|max:255',
+            'last_name'       => 'required|string|max:255',
+            'email'           => 'required|string|email|max:255|unique:users',
+            'password'        => 'required|string|min:4|confirmed',
+            'dob'             => 'required|date',
+            'username'        => 'required|string|max:255|unique:users',
+            'billing_address' => 'required|string',
+            'sizes'           => 'array',
+            'sizes.*.category'=> 'required_with:sizes|string',
+            'sizes.*.size'    => 'required_with:sizes',
+            'brands'          => 'array',
+        ]);
+
+        // Create user with billing address directly
+        $user = User::create([
+            'first_name'      => $request->first_name,
+            'last_name'       => $request->last_name,
+            'email'           => $request->email,
+            'password'        => Hash::make($request->password),
+            'dob'             => $request->dob,
+            'username'        => $request->username,
+            'billing_address' => $request->billing_address,
+            'role_id'    => 2, // default role
+        ]);
+
+        // Save sizes
+        if ($request->has('sizes')) {
+            foreach ($request->sizes as $sizeData) {
+                $rawSize = $sizeData['size'];
+
+                $sizes = [];
+
+                // Case 1: Already an array from Flutter
+                if (is_array($rawSize)) {
+                    $sizes = $rawSize;
+                }
+                // Case 2: String that looks like "[L,M,S]"
+                elseif (is_string($rawSize)) {
+                    $clean = trim($rawSize, "[]"); // remove square brackets
+                    $sizes = array_map('trim', explode(',', $clean));
+                }
+
+                // Save each size
+                foreach ($sizes as $singleSize) {
+                    if (!empty($singleSize)) {
+                        \App\Models\UserSize::create([
+                            'user_id'  => $user->id,
+                            'category' => $sizeData['category'],
+                            'size'     => $singleSize,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // Save preferred brands
+        if ($request->has('brands')) {
+            foreach ($request->brands as $brand) {
+                if (!empty($brand)) {
+                    \App\Models\UserBrand::create([
+                        'user_id'    => $user->id,
+                        'brand_name' => $brand,
+                    ]);
+                }
+            }
+        }
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message'      => 'User registered successfully',
+            'user'         => $user, // include relations in response
             'access_token' => $token,
         ]);
     }
@@ -82,7 +216,7 @@ class AuthController extends Controller
             ]);
 
             $email = $request->email;
-            
+
             // Check if there's a recent request to prevent spam
             $recentRequest = PasswordReset::where('email', $email)
                 ->where('created_at', '>', now()->subMinutes(2))
@@ -117,7 +251,7 @@ class AuthController extends Controller
 
             // Send the code via email
             $user = User::where('email', $email)->firstOrFail();
-            
+
             // Queue the notification
             $user->notify(new PasswordResetNotification($code));
 
