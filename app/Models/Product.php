@@ -145,8 +145,8 @@ class Product extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true)
-                    ->where('is_deleted', false)
-                    ->where('status', true);
+            ->where('is_deleted', false)
+            ->where('status', true);
     }
 
     /**
@@ -156,8 +156,8 @@ class Product extends Model
     {
         $now = now();
         return $query->where('is_promoted', true)
-                    ->where('promote_start_date', '<=', $now)
-                    ->where('promote_end_date', '>=', $now);
+            ->where('promote_start_date', '<=', $now)
+            ->where('promote_end_date', '>=', $now);
     }
 
     /**
@@ -166,7 +166,7 @@ class Product extends Model
     public function scopeSpecialOffers($query)
     {
         return $query->where('is_special_offer', true)
-                    ->orderBy('special_offer_date', 'DESC');
+            ->orderBy('special_offer_date', 'DESC');
     }
 
     /**
@@ -284,5 +284,20 @@ class Product extends Model
             return round((($this->price - $this->price_discounted) / $this->price) * 100);
         }
         return 0;
+    }
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function sizes()
+    {
+        return $this->belongsToMany(Size::class, 'product_sizes')
+            ->withTimestamps();
+    }
+    public function productSizes()
+    {
+        return $this->hasMany(ProductSize::class);
     }
 }

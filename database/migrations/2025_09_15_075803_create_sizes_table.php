@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('user_brands', function (Blueprint $table) {
+        Schema::create('sizes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id');
-            $table->foreignId('brand_id'); // or use brand_id if you have a brands table
+            $table->string('name'); // e.g., S, M, L, XL, 42, One Size
+            $table->string('type')->nullable(); // e.g., clothing, shoes, rings
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_brands');
+        Schema::dropIfExists('sizes');
     }
 };

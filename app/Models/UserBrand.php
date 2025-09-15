@@ -11,7 +11,7 @@ class UserBrand extends Model
 
     protected $fillable = [
         'user_id',
-        'brand_name',
+        'brand_id',
     ];
 
     public function user()

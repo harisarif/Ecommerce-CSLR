@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\WishListController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\SizeController;
 
 Route::prefix('v1')->group(function () {
 
@@ -22,6 +23,7 @@ Route::prefix('v1')->group(function () {
         Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
+        Route::get('/categories-with-sizes', [CategoryController::class, 'getCategoriesWithSizes']);
     });
     Route::prefix('category')->group(function () {
         Route::get('/list', [CategoryController::class, 'index']);
@@ -35,6 +37,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/promoted', [ProductController::class, 'getPromotedProducts']);
         Route::get('/category/{category_id}', [ProductController::class, 'getProductsByCategory']);
         Route::get('/search', [ProductController::class, 'search']);
+        Route::post('/create', [ProductController::class, 'store']);
+
     });
 
 
@@ -47,6 +51,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/change-password', [UserController::class, 'changePassword']);
         });
 
+
+        Route::prefix('product')->group(function () {
+            Route::get('/get', [ProductController::class, 'getUserProducts']);
+        });
 
         Route::prefix('cart')->group(function () {
             Route::get('/index', [CartController::class, 'index']);
@@ -67,6 +75,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/cancel', [OrderController::class, 'cancelOrder']);
         });
     });
-
     Route::post('/check-username', [UserController::class, 'checkUsername']);
+    Route::apiResource('sizes', SizeController::class);
 });

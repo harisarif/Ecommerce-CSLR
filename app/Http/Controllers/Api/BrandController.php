@@ -11,7 +11,7 @@ class BrandController extends Controller
     public function index()
     {
         // Fetch only "name" column
-        $brands = DB::table('brands')->pluck('name');
+        $brands = Brand::pluck('name','id');
 
         return response()->json([
             'status' => true,

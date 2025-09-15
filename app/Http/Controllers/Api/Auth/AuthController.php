@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Log;
 use App\Models\EmailLoginToken;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EmailLoginLinkMail;
+use App\Models\UserBrand;
+use App\Models\UserSize;
 
 class AuthController extends Controller
 {
@@ -121,12 +123,13 @@ class AuthController extends Controller
             'username'        => 'required|string|max:255|unique:users',
             'billing_address' => 'required|string',
             'sizes'           => 'array',
-            'sizes.*.category'=> 'required_with:sizes|string',
-            'sizes.*.size'    => 'required_with:sizes',
+            'sizes.*.category_id' => 'required_with:sizes|exists:categories,id',
+            'sizes.*.size_id'     => 'required_with:sizes|exists:sizes,id',
             'brands'          => 'array',
+            'brands.*'        => 'required|exists:brands,id',
         ]);
 
-        // Create user with billing address directly
+        // Create user
         $user = User::create([
             'first_name'      => $request->first_name,
             'last_name'       => $request->last_name,
@@ -135,48 +138,27 @@ class AuthController extends Controller
             'dob'             => $request->dob,
             'username'        => $request->username,
             'billing_address' => $request->billing_address,
-            'role_id'    => 2, // default role
+            'role_id'         => 2, // default role
         ]);
 
-        // Save sizes
+        // Save sizes (store IDs)
         if ($request->has('sizes')) {
             foreach ($request->sizes as $sizeData) {
-                $rawSize = $sizeData['size'];
-
-                $sizes = [];
-
-                // Case 1: Already an array from Flutter
-                if (is_array($rawSize)) {
-                    $sizes = $rawSize;
-                }
-                // Case 2: String that looks like "[L,M,S]"
-                elseif (is_string($rawSize)) {
-                    $clean = trim($rawSize, "[]"); // remove square brackets
-                    $sizes = array_map('trim', explode(',', $clean));
-                }
-
-                // Save each size
-                foreach ($sizes as $singleSize) {
-                    if (!empty($singleSize)) {
-                        \App\Models\UserSize::create([
-                            'user_id'  => $user->id,
-                            'category' => $sizeData['category'],
-                            'size'     => $singleSize,
-                        ]);
-                    }
-                }
+                   UserSize::create([
+                    'user_id'     => $user->id,
+                    'category_id' => $sizeData['category_id'],
+                    'size_id'     => $sizeData['size_id'],
+                ]);
             }
         }
 
-        // Save preferred brands
+        // Save brands (store IDs)
         if ($request->has('brands')) {
-            foreach ($request->brands as $brand) {
-                if (!empty($brand)) {
-                    \App\Models\UserBrand::create([
-                        'user_id'    => $user->id,
-                        'brand_name' => $brand,
-                    ]);
-                }
+            foreach ($request->brands as $brandId) {
+                UserBrand::create([
+                    'user_id'  => $user->id,
+                    'brand_id' => $brandId,
+                ]);
             }
         }
 
@@ -184,10 +166,11 @@ class AuthController extends Controller
 
         return response()->json([
             'message'      => 'User registered successfully',
-            'user'         => $user, // include relations in response
+            'user'         => $user,
             'access_token' => $token,
         ]);
     }
+
 
     public function login(Request $request)
     {

@@ -122,8 +122,8 @@ class Category extends Model
     public function scopeFeatured($query)
     {
         return $query->where('is_featured', true)
-                    ->orderBy('featured_order')
-                    ->orderBy('name');
+            ->orderBy('featured_order')
+            ->orderBy('name');
     }
 
     /**
@@ -132,8 +132,8 @@ class Category extends Model
     public function scopeForMainMenu($query)
     {
         return $query->where('show_on_main_menu', true)
-                    ->orderBy('category_order')
-                    ->orderBy('name');
+            ->orderBy('category_order')
+            ->orderBy('name');
     }
 
     /**
@@ -143,12 +143,12 @@ class Category extends Model
     {
         $path = [];
         $category = $this;
-        
+
         while ($category) {
             array_unshift($path, $category->name);
             $category = $category->parent;
         }
-        
+
         return implode(' > ', $path);
     }
 
@@ -168,11 +168,11 @@ class Category extends Model
         if (empty($this->image)) {
             return asset('assets/img/no-image.jpg');
         }
-        
+
         if (filter_var($this->image, FILTER_VALIDATE_URL)) {
             return $this->image;
         }
-        
+
         return asset('storage/' . $this->image);
     }
 
@@ -183,11 +183,11 @@ class Category extends Model
     {
         $categoryIds = $this->getAllDescendantIds();
         $categoryIds[] = $this->id;
-        
+
         return Product::whereIn('category_id', $categoryIds)
-                     ->where('status', true)
-                     ->where('visibility', true)
-                     ->get();
+            ->where('status', true)
+            ->where('visibility', true)
+            ->get();
     }
 
     /**
@@ -196,12 +196,12 @@ class Category extends Model
     protected function getAllDescendantIds()
     {
         $ids = [];
-        
+
         foreach ($this->children as $child) {
             $ids[] = $child->id;
             $ids = array_merge($ids, $child->getAllDescendantIds());
         }
-        
+
         return $ids;
     }
 
@@ -221,11 +221,36 @@ class Category extends Model
         if ($this->parent_id === $category->id) {
             return true;
         }
-        
+
         if ($this->parent) {
             return $this->parent->isDescendantOf($category);
         }
-        
+
         return false;
+    }
+
+    public function sizes()
+    {
+        return $this->hasManyThrough(
+            Size::class,
+            ProductSize::class,
+            'product_id',   // Foreign key on product_sizes
+            'id',           // Local key on sizes
+            'id',           // Local key on categories
+            'size_id'       // Foreign key on product_sizes
+        );
+    }
+
+    // Or if you want sizes via products directly:
+    public function productSizes()
+    {
+        return $this->hasManyThrough(
+            ProductSize::class,
+            Product::class,
+            'category_id',  // Foreign key on products table
+            'product_id',   // Foreign key on product_sizes table
+            'id',           // Local key on categories table
+            'id'            // Local key on products table
+        );
     }
 }

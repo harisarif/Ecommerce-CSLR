@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('user_sizes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id');
-            $table->string('category'); // e.g. tops, pants, shoes
-            $table->string('size');     // e.g. M, L, XL, 42, 44
+            $table->foreignId('category_id'); 
+            $table->foreignId('size_id');
             $table->timestamps();
         });
     }

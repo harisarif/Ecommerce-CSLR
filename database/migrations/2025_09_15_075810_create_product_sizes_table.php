@@ -11,10 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('user_brands', function (Blueprint $table) {
+        Schema::create('product_sizes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id');
-            $table->foreignId('brand_id'); // or use brand_id if you have a brands table
+            $table->foreignId('product_id');
+            $table->foreignId('size_id');
+            $table->integer('stock')->default(0); // optional: manage inventory per size
             $table->timestamps();
         });
     }
@@ -24,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_brands');
+        Schema::dropIfExists('product_sizes');
     }
 };
