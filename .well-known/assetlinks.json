@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.selr.app",
+      "sha256_cert_fingerprints": [
+        "00:3D:F3:77:68:BC:7A:2D:79:77:B5:F4:FE:AC:0D:4D:A4:8E:9C:E8:5D:EF:5D:32:73:83:7F:D4:3A:FB:2F:01"
+      ]
+    }
+  }
+]
