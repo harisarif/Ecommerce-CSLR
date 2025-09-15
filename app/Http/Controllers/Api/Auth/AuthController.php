@@ -34,7 +34,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-       $link = url("/api/v1/auth/email-login-verify?token=$token");
+       $link = url("/email-login?token=$token");
 
         // Send styled email
         Mail::to($email)->send(new EmailLoginLinkMail($link));
@@ -57,6 +57,22 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $record->email)->first();
+
+        // if ($user) {
+        //     $apiToken = $user->createToken('auth-token')->plainTextToken;
+        //     $record->delete();
+
+        //     return response()->json([
+        //         'status' => 'success',
+        //         'token' => $apiToken,
+        //         'email' => $user->email
+        //     ]);
+        // } else {
+        //     return response()->json([
+        //         'status' => 'new_user',
+        //         'email' => $record->email
+        //     ]);
+        // }
 
         if ($user) {
             // Existing user → login
