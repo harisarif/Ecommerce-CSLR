@@ -11,7 +11,6 @@ class ProductSize extends Model
     protected $fillable = [
         'product_id',
         'size_id',
-        // 'stock' // uncomment later if you add stock column
     ];
 
     public function product()
@@ -23,5 +22,5 @@ class ProductSize extends Model
     {
         return $this->belongsTo(Size::class);
     }
-    
+
 }

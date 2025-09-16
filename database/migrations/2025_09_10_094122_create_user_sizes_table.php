@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('user_sizes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id');
-            $table->foreignId('category_id'); 
+            $table->foreignId('app_category_id');
             $table->foreignId('size_id');
             $table->timestamps();
         });

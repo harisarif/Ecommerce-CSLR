@@ -26,7 +26,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/categories-with-sizes', [CategoryController::class, 'getCategoriesWithSizes']);
     });
     Route::prefix('category')->group(function () {
-        Route::get('/list', [CategoryController::class, 'index']);
+        Route::get('/list', [CategoryController::class, 'index']); // paginate list
+        Route::post('/', [CategoryController::class, 'store']); // create parent/child/sub
+        Route::get('/tree', [CategoryController::class, 'tree']); // full hierarchy
+        Route::put('/{category}', [CategoryController::class, 'update']);
+        Route::delete('/{category}', [CategoryController::class, 'destroy']);
     });
     Route::prefix('brands')->group(function () {
         Route::get('/list', [BrandController::class, 'index']);

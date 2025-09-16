@@ -11,7 +11,7 @@ class UserSize extends Model
 
     protected $fillable = [
         'user_id',
-        'category_id',
+        'app_category_id',
         'size_id',
     ];
 

@@ -146,7 +146,7 @@ class AuthController extends Controller
             foreach ($request->sizes as $sizeData) {
                    UserSize::create([
                     'user_id'     => $user->id,
-                    'category_id' => $sizeData['category_id'],
+                    'app_category_id' => $sizeData['category_id'],
                     'size_id'     => $sizeData['size_id'],
                 ]);
             }

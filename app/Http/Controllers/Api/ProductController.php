@@ -17,7 +17,7 @@ class ProductController extends Controller
 
         if ($productId) {
             $product = Product::with([
-                'details', 'licenseKeys', 'searchIndexes', 'category',
+                'details', 'licenseKeys', 'searchIndexes', 'category', 'appCategory',
                 'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
             ])->find($productId);
 
@@ -64,12 +64,26 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
-    public function getProductsByCategory($category_id)
+    public function getProductsByCategory(Request $request, $category_id)
     {
-        $product = Product::with(['details', 'licenseKeys', 'searchIndexes', 'category', 'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'])
-        ->where('category_id', $category_id)
-        ->paginate(10);
-        return response()->json($product);
+        $isApp = $request->query('app', false); // /products/category/1?app=1
+
+        $query = Product::with([
+            'details', 'licenseKeys', 'searchIndexes',
+            'category', 'appCategory',
+            'user', 'images', 'variations',
+            'defaultVariationOptions', 'mainImage', 'sizes'
+        ]);
+
+        if ($isApp) {
+            $query->where('app_category_id', $category_id);
+        } else {
+            $query->where('category_id', $category_id);
+        }
+
+        $products = $query->paginate(10);
+
+        return response()->json($products);
     }
 
     public function search(Request $request)
@@ -117,6 +131,7 @@ class ProductController extends Controller
             'status' => 'boolean',
             'stock' => 'integer',
             'brand_id' => 'nullable|exists:brands,id',
+            'app_category_id' => 'nullable|exists:app_categories,id',
 
             // 👇 extra validation for sizes
             'size_ids' => 'array',
@@ -142,29 +157,33 @@ class ProductController extends Controller
     public function getUserProducts(Request $request)
     {
         $user = $request->user();
+
         // Fetch user-selected sizes and brands
         $userSizes = UserSize::where('user_id', $user->id)
-            ->get(['category_id', 'size_id']);
+            ->get(['app_category_id', 'size_id']); // updated to app_category_id
 
         $userBrands = UserBrand::where('user_id', $user->id)
             ->pluck('brand_id')
             ->toArray();
 
-
         $productsQuery = Product::query()
-            ->with(['brand:id,name', 'category:id,slug', 'productSizes.size']);
+            ->with([
+                'brand:id,name',
+                'appCategory:id,slug',   // updated: relation to app_categories
+                'productSizes.size'
+            ]);
 
         // Filter by brands if any
         if (!empty($userBrands)) {
             $productsQuery->whereIn('brand_id', $userBrands);
         }
 
-        // Filter by user-selected sizes
+        // Filter by user-selected sizes + app categories
         if ($userSizes->isNotEmpty()) {
             $productsQuery->where(function ($query) use ($userSizes) {
                 foreach ($userSizes as $us) {
                     $query->orWhere(function ($q) use ($us) {
-                        $q->where('category_id', $us->category_id)
+                        $q->where('app_category_id', $us->app_category_id) // updated
                         ->whereHas('productSizes', function ($q2) use ($us) {
                             $q2->where('size_id', $us->size_id);
                         });
@@ -180,6 +199,7 @@ class ProductController extends Controller
             'data' => $products,
         ]);
     }
+
 
 
 

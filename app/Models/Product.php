@@ -20,6 +20,7 @@ class Product extends Model
         'listing_type',
         'sku',
         'category_id',
+        'app_category_id',
         'price',
         'price_discounted',
         'currency',
@@ -299,5 +300,9 @@ class Product extends Model
     public function productSizes()
     {
         return $this->hasMany(ProductSize::class);
+    }
+    public function appCategory()
+    {
+        return $this->belongsTo(AppCategory::class, 'app_category_id');
     }
 }
