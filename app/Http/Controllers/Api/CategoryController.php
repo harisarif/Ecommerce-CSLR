@@ -14,25 +14,25 @@ class CategoryController extends Controller
         return response()->json($categories);
     }
 
-public function store(Request $request)
-{
-    $validated = $request->validate([
-        'slug' => 'required|string|max:255|unique:app_categories,slug',
-        'parent_id' => 'nullable|integer|min:0',
-    ]);
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'slug' => 'required|string|max:255|unique:app_categories,slug',
+            'parent_id' => 'nullable|integer|min:0',
+        ]);
 
-    // If parent_id = 0 → make it null before saving
-    if (isset($validated['parent_id']) && $validated['parent_id'] == 0) {
-        $validated['parent_id'] = null;
+        // If parent_id = 0 → make it null before saving
+        if (isset($validated['parent_id']) && $validated['parent_id'] == 0) {
+            $validated['parent_id'] = null;
+        }
+
+        $category = AppCategory::create($validated);
+
+        return response()->json([
+            'success' => true,
+            'data' => $category
+        ]);
     }
-
-    $category = AppCategory::create($validated);
-
-    return response()->json([
-        'success' => true,
-        'data' => $category
-    ]);
-}
 
     public function tree()
     {
@@ -50,9 +50,12 @@ public function store(Request $request)
     {
         $validated = $request->validate([
             'slug' => 'sometimes|string|max:255|unique:app_categories,slug,' . $category->id,
-            'parent_id' => 'nullable|exists:app_categories,id',
+             'parent_id' => 'nullable|integer|min:0',
         ]);
-
+        // If parent_id = 0 → make it null before saving
+        if (isset($validated['parent_id']) && $validated['parent_id'] == 0) {
+            $validated['parent_id'] = null;
+        }
         $category->update($validated);
 
         return response()->json([

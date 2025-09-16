@@ -11,7 +11,6 @@ class AppCategoriesSeeder extends Seeder
     public function run(): void
     {
         // Clear existing records
-        DB::table('app_categories')->truncate();
 
         // --- Parents ---
         $menId = DB::table('app_categories')->insertGetId([
