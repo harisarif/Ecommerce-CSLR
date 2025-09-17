@@ -36,7 +36,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-       $link = url("/email-login?token=$token");
+       $link = url("/email-login-verify?token=$token");
 
         // Send styled email
         Mail::to($email)->send(new EmailLoginLinkMail($link));
