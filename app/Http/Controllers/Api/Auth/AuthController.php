@@ -49,6 +49,35 @@ class AuthController extends Controller
         ]);
     }
 
+    public function resendEmailLogin(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        $email = $request->email;
+
+        // Revoke any old tokens for this email
+        EmailLoginToken::where('email', $email)->delete();
+
+        // Generate new token
+        $token = Str::random(64);
+
+        EmailLoginToken::create([
+            'email'      => $email,
+            'token'      => $token,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        $link = url("/email-login?token=$token");
+
+        Mail::to($email)->send(new EmailLoginLinkMail($link));
+
+        return response()->json([
+            'message' => 'A new verification link has been sent to your email',
+        ]);
+    }
+
     public function emailLoginVerify(Request $request)
     {
         $token = $request->query('token');
@@ -86,33 +115,6 @@ class AuthController extends Controller
             return redirect()->away("myapp://signup?email={$record->email}");
         }
     }
-
-    public function register(Request $request)
-    {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:4|confirmed',
-        ]);
-
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        $token = $user->createToken('auth-token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'access_token' => $token,
-        ]);
-    }
-
-
     public function registerVendor(Request $request)
     {
         $request->validate([
@@ -170,6 +172,33 @@ class AuthController extends Controller
             'access_token' => $token,
         ]);
     }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:4|confirmed',
+        ]);
+
+        $user = User::create([
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'User registered successfully',
+            'user' => $user,
+            'access_token' => $token,
+        ]);
+    }
+
+
 
 
     public function login(Request $request)

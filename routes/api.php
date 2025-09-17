@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SizeController;
+use App\Http\Controllers\API\DiscoverController;
 
 Route::prefix('v1')->group(function () {
 
@@ -24,6 +25,7 @@ Route::prefix('v1')->group(function () {
         Route::post('verify-reset-code', [AuthController::class, 'verifyResetCode']);
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
         Route::get('/categories-with-sizes', [CategoryController::class, 'getCategoriesWithSizes']);
+        Route::post('/resend-email-login', [AuthController::class, 'resendEmailLogin']);
     });
     Route::prefix('category')->group(function () {
         Route::get('/list', [CategoryController::class, 'index']); // paginate list
@@ -46,6 +48,7 @@ Route::prefix('v1')->group(function () {
     });
 
 
+    Route::get('/filters', [DiscoverController::class, 'filters']);
     Route::middleware('auth:sanctum')->group(function () {
 
         Route::prefix('user')->group(function () {
