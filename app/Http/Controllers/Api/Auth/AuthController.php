@@ -110,9 +110,9 @@ class AuthController extends Controller
             $apiToken = $user->createToken('auth-token')->plainTextToken;
             $record->delete();
 
-            return redirect()->away("myapp://login-success?token=$apiToken");
+            return redirect()->away("myapp://auth?status=success&token=$apiToken&email={$user->email}");
         } else {
-            return redirect()->away("myapp://signup?email={$record->email}");
+            return redirect()->away("myapp://auth?status=new_user&email={$record->email}");
         }
     }
     public function registerVendor(Request $request)
