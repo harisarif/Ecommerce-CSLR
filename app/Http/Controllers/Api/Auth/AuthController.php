@@ -89,31 +89,30 @@ class AuthController extends Controller
 
         $user = User::where('email', $record->email)->first();
 
-        // if ($user) {
-        //     $apiToken = $user->createToken('auth-token')->plainTextToken;
-        //     $record->delete();
-
-        //     return response()->json([
-        //         'status' => 'success',
-        //         'token' => $apiToken,
-        //         'email' => $user->email
-        //     ]);
-        // } else {
-        //     return response()->json([
-        //         'status' => 'new_user',
-        //         'email' => $record->email
-        //     ]);
-        // }
-
         if ($user) {
-            // Existing user → login
             $apiToken = $user->createToken('auth-token')->plainTextToken;
             $record->delete();
 
-            return redirect()->away("myapp://auth?status=success&token=$apiToken&email={$user->email}");
+            return response()->json([
+                'status' => 'success',
+                'token' => $apiToken,
+                'email' => $user->email
+            ]);
         } else {
-            return redirect()->away("myapp://auth?status=new_user&email={$record->email}");
+            return response()->json([
+                'status' => 'new_user',
+                'email' => $record->email
+            ]);
         }
+        // if ($user) {
+        //     // Existing user → login
+        //     $apiToken = $user->createToken('auth-token')->plainTextToken;
+        //     $record->delete();
+
+        //     return redirect()->away("myapp://auth?status=success&token=$apiToken&email={$user->email}");
+        // } else {
+        //     return redirect()->away("myapp://auth?status=new_user&email={$record->email}");
+        // }
     }
     public function registerVendor(Request $request)
     {
