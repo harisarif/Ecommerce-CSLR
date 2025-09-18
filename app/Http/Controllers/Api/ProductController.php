@@ -121,7 +121,6 @@ class ProductController extends Controller
             'product_type' => 'required|string',
             'listing_type' => 'required|string',
             'sku' => 'required|string|max:100|unique:products,sku',
-            'category_id' => 'required|exists:categories,id',
             'price' => 'required|integer',
             'price_discounted' => 'nullable|integer',
             'currency' => 'required|string|max:10',
