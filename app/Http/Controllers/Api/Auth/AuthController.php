@@ -36,7 +36,8 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-       $link = url("/email-login-verify?token=$token");
+      $link = url("/api/v1/auth/email-login-verify?token=$token");
+
 
         // Send styled email
         Mail::to($email)->send(new EmailLoginLinkMail($link));
@@ -68,8 +69,8 @@ class AuthController extends Controller
             'token'      => $token,
             'expires_at' => now()->addMinutes(15),
         ]);
+$link = url("/api/v1/auth/email-login-verify?token=$token");
 
-        $link = url("/email-login-verify?token=$token");
 
         Mail::to($email)->send(new EmailLoginLinkMail($link));
 
@@ -78,56 +79,30 @@ class AuthController extends Controller
         ]);
     }
 
-    public function emailLoginVerify(Request $request)
-    {
-        $token = $request->query('token');
-        $record = EmailLoginToken::where('token', $token)->first();
+public function emailLoginVerify(Request $request)
+{
+    $token = $request->query('token');
+    $record = EmailLoginToken::where('token', $token)->first();
 
-        if (!$record || $record->isExpired()) {
-            Log::warning("Email login failed. Invalid/expired token: {$token}");
-            return response()->json(['message' => 'Invalid or expired token'], 422);
-        }
-
-        $user = User::where('email', $record->email)->first();
-
-        if ($user) {
-            $apiToken = $user->createToken('auth-token')->plainTextToken;
-            $record->delete();
-
-            $params = http_build_query([
-                'status' => 'success',
-                'token'  => $apiToken,
-                'email'  => $user->email,
-            ]);
-
-            $redirectUrl = "https://lightgray-dragonfly-620192.hostingersite.com/auth?$params";
-
-            // 🔥 Log the final URL backend is sending
-            Log::info("Email login success redirect", [
-                'redirect_url' => $redirectUrl,
-                'user_id'      => $user->id,
-                'email'        => $user->email,
-            ]);
-
-            return redirect()->away($redirectUrl);
-        } else {
-            $params = http_build_query([
-                'status' => 'new_user',
-                'email'  => $record->email,
-            ]);
-
-            $redirectUrl = "https://lightgray-dragonfly-620192.hostingersite.com/auth?$params";
-
-            // 🔥 Log the final URL backend is sending
-            Log::info("Email login new user redirect", [
-                'redirect_url' => $redirectUrl,
-                'email'        => $record->email,
-            ]);
-
-            return redirect()->away($redirectUrl);
-        }
+    if (!$record || $record->isExpired()) {
+        return response()->json(['message' => 'Invalid or expired token'], 422);
     }
 
+    $user = User::where('email', $record->email)->first();
+
+    if ($user) {
+        $apiToken = $user->createToken('auth-token')->plainTextToken;
+        $record->delete();
+
+        // Redirect directly to your app deep link
+        return redirect()->away("myapp://auth?status=success&token=$apiToken&email={$user->email}");
+    } else {
+        return redirect()->away("myapp://auth?status=new_user&email={$record->email}");
+    }
+}
+
+
+    }
     public function registerVendor(Request $request)
     {
         $request->validate([
