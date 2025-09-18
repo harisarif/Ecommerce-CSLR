@@ -104,14 +104,26 @@ class AuthController extends Controller
         //         'email' => $record->email
         //     ]);
         // }
-    if ($user) {
-        $apiToken = $user->createToken('auth-token')->plainTextToken;
-        $record->delete();
+        if ($user) {
+            $apiToken = $user->createToken('auth-token')->plainTextToken;
+            $record->delete();
 
-        return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=success&token=$apiToken&email={$user->email}");
-    } else {
-        return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=new_user&email={$record->email}");
-    }
+            $params = http_build_query([
+                'status' => 'success',
+                'token'  => $apiToken,
+                'email'  => $user->email,
+            ]);
+
+            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?$params");
+        } else {
+            $params = http_build_query([
+                'status' => 'new_user',
+                'email'  => $record->email,
+            ]);
+
+            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?$params");
+        }
+
 
     }
     public function registerVendor(Request $request)
