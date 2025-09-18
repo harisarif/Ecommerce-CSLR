@@ -114,6 +114,32 @@ class AuthController extends Controller
         //     return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=new_user&email={$record->email}");
         // }
     }
+
+    public function checkToken(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'invalid',
+                    'message' => 'Token is invalid or expired',
+                ], 401);
+            }
+
+            return response()->json([
+                'status' => 'valid',
+                'message' => 'Token is still valid',
+                'email' => $user->email,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'invalid',
+                'message' => 'Token check failed',
+            ], 401);
+        }
+    }
+
     public function registerVendor(Request $request)
     {
         $request->validate([

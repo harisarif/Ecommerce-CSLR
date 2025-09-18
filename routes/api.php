@@ -48,6 +48,8 @@ Route::prefix('v1')->group(function () {
     });
 
 
+    Route::get('/discover', [DiscoverController::class, 'discover']);
+
     Route::get('/filters', [DiscoverController::class, 'filters']);
     Route::middleware('auth:sanctum')->group(function () {
 
@@ -56,6 +58,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/index', [UserController::class, 'index']);
             Route::post('/update-profile', [UserController::class, 'updateProfile']);
             Route::post('/change-password', [UserController::class, 'changePassword']);
+            Route::get('/check-token', [AuthController::class, 'checkToken']);
         });
 
 
