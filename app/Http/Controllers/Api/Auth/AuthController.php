@@ -84,26 +84,12 @@ class AuthController extends Controller
         $record = EmailLoginToken::where('token', $token)->first();
 
         if (!$record || $record->isExpired()) {
+            Log::warning("Email login failed. Invalid/expired token: {$token}");
             return response()->json(['message' => 'Invalid or expired token'], 422);
         }
 
         $user = User::where('email', $record->email)->first();
 
-        // if ($user) {
-        //     $apiToken = $user->createToken('auth-token')->plainTextToken;
-        //     $record->delete();
-
-        //     return response()->json([
-        //         'status' => 'success',
-        //         'token' => $apiToken,
-        //         'email' => $user->email
-        //     ]);
-        // } else {
-        //     return response()->json([
-        //         'status' => 'new_user',
-        //         'email' => $record->email
-        //     ]);
-        // }
         if ($user) {
             $apiToken = $user->createToken('auth-token')->plainTextToken;
             $record->delete();
@@ -114,18 +100,34 @@ class AuthController extends Controller
                 'email'  => $user->email,
             ]);
 
-            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?$params");
+            $redirectUrl = "https://lightgray-dragonfly-620192.hostingersite.com/auth?$params";
+
+            // 🔥 Log the final URL backend is sending
+            Log::info("Email login success redirect", [
+                'redirect_url' => $redirectUrl,
+                'user_id'      => $user->id,
+                'email'        => $user->email,
+            ]);
+
+            return redirect()->away($redirectUrl);
         } else {
             $params = http_build_query([
                 'status' => 'new_user',
                 'email'  => $record->email,
             ]);
 
-            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?$params");
+            $redirectUrl = "https://lightgray-dragonfly-620192.hostingersite.com/auth?$params";
+
+            // 🔥 Log the final URL backend is sending
+            Log::info("Email login new user redirect", [
+                'redirect_url' => $redirectUrl,
+                'email'        => $record->email,
+            ]);
+
+            return redirect()->away($redirectUrl);
         }
-
-
     }
+
     public function registerVendor(Request $request)
     {
         $request->validate([
