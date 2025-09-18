@@ -36,8 +36,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-      $link = url("/api/v1/auth/email-login-verify?token=$token");
-
+       $link = url("/email-login-verify?token=$token");
 
         // Send styled email
         Mail::to($email)->send(new EmailLoginLinkMail($link));
@@ -69,8 +68,8 @@ class AuthController extends Controller
             'token'      => $token,
             'expires_at' => now()->addMinutes(15),
         ]);
-$link = url("/api/v1/auth/email-login-verify?token=$token");
 
+        $link = url("/email-login-verify?token=$token");
 
         Mail::to($email)->send(new EmailLoginLinkMail($link));
 
@@ -79,27 +78,40 @@ $link = url("/api/v1/auth/email-login-verify?token=$token");
         ]);
     }
 
-public function emailLoginVerify(Request $request)
-{
-    $token = $request->query('token');
-    $record = EmailLoginToken::where('token', $token)->first();
+    public function emailLoginVerify(Request $request)
+    {
+        $token = $request->query('token');
+        $record = EmailLoginToken::where('token', $token)->first();
 
-    if (!$record || $record->isExpired()) {
-        return response()->json(['message' => 'Invalid or expired token'], 422);
-    }
+        if (!$record || $record->isExpired()) {
+            return response()->json(['message' => 'Invalid or expired token'], 422);
+        }
 
-    $user = User::where('email', $record->email)->first();
+        $user = User::where('email', $record->email)->first();
 
-    if ($user) {
-        $apiToken = $user->createToken('auth-token')->plainTextToken;
-        $record->delete();
+        // if ($user) {
+        //     $apiToken = $user->createToken('auth-token')->plainTextToken;
+        //     $record->delete();
 
-        // Redirect directly to your app deep link
-        return redirect()->away("myapp://auth?status=success&token=$apiToken&email={$user->email}");
-    } else {
-        return redirect()->away("myapp://auth?status=new_user&email={$record->email}");
-    }
-}
+        //     return response()->json([
+        //         'status' => 'success',
+        //         'token' => $apiToken,
+        //         'email' => $user->email
+        //     ]);
+        // } else {
+        //     return response()->json([
+        //         'status' => 'new_user',
+        //         'email' => $record->email
+        //     ]);
+        // }
+        if ($user) {
+            $apiToken = $user->createToken('auth-token')->plainTextToken;
+            $record->delete();
+
+            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=success&token=$apiToken&email={$user->email}");
+        } else {
+            return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=new_user&email={$record->email}");
+        }
 
 
     }
