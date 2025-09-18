@@ -36,7 +36,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-       $link = url("/email-login-verify?token=$token");
+       $link = url("/api/v1/auth/email-login-verify?token=$token");
 
         // Send styled email
         Mail::to($email)->send(new EmailLoginLinkMail($link));
@@ -69,7 +69,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-        $link = url("/email-login-verify?token=$token");
+        $link = url("/api/v1/auth/email-login-verify?token=$token");
 
         Mail::to($email)->send(new EmailLoginLinkMail($link));
 
@@ -104,6 +104,7 @@ class AuthController extends Controller
         //         'email' => $record->email
         //     ]);
         // }
+        
         if ($user) {
             $apiToken = $user->createToken('auth-token')->plainTextToken;
             $record->delete();
@@ -112,8 +113,6 @@ class AuthController extends Controller
         } else {
             return redirect()->away("https://lightgray-dragonfly-620192.hostingersite.com/auth?status=new_user&email={$record->email}");
         }
-
-
     }
     public function registerVendor(Request $request)
     {
