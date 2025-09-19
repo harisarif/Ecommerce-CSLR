@@ -163,70 +163,110 @@ class ProductController extends Controller
 
 
 
-public function getUserProducts(Request $request)
-{
-    $user = $request->user();
+    // public function getUserProducts(Request $request)
+    // {
+    //     $user = $request->user();
 
-    // User preferences
-    $userSizes = UserSize::where('user_id', $user->id)
-        ->get(['app_category_id', 'size_id']); // app_category + size
-    $userBrands = UserBrand::where('user_id', $user->id)
-        ->pluck('brand_id')
-        ->toArray();
+    //     // Fetch user-selected sizes and brands
+    //     $userSizes = UserSize::where('user_id', $user->id)
+    //         ->get(['app_category_id', 'size_id']); // updated to app_category_id
 
-    $productsQuery = Product::query()
-        ->with([
-            'brand:id,name',
-            'appCategory:id,slug',
-            'productSizes.size',
-            'images',
-            'variations',
-            'defaultVariationOptions',
-            'mainImage'
-        ]); // in-stock only
+    //     $userBrands = UserBrand::where('user_id', $user->id)
+    //         ->pluck('brand_id')
+    //         ->toArray();
 
-    // Filter by user's favorite brands
-    if (!empty($userBrands)) {
-        $productsQuery->whereIn('brand_id', $userBrands);
-    }
+    //     $productsQuery = Product::query()
+    //         ->with([
+    //             'brand:id,name',
+    //             'appCategory:id,slug',   // updated: relation to app_categories
+    //             'productSizes.size', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
+    //         ]);
 
-    // Filter by user's favorite categories + sizes
-    if ($userSizes->isNotEmpty()) {
-        $productsQuery->where(function ($query) use ($userSizes) {
-            foreach ($userSizes as $us) {
-                $query->orWhere(function ($q) use ($us) {
-                    $q->where('app_category_id', $us->app_category_id)
-                      ->whereHas('productSizes', function ($q2) use ($us) {
-                          $q2->where('size_id', $us->size_id);
-                      });
-                });
+    //     // Filter by brands if any
+    //     if (!empty($userBrands)) {
+    //         $productsQuery->whereIn('brand_id', $userBrands);
+    //     }
+
+    //     // Filter by user-selected sizes + app categories
+    //     if ($userSizes->isNotEmpty()) {
+    //         $productsQuery->where(function ($query) use ($userSizes) {
+    //             foreach ($userSizes as $us) {
+    //                 $query->orWhere(function ($q) use ($us) {
+    //                     $q->where('app_category_id', $us->app_category_id) // updated
+    //                     ->whereHas('productSizes', function ($q2) use ($us) {
+    //                         $q2->where('size_id', $us->size_id);
+    //                     });
+    //                 });
+    //             }
+    //         });
+    //     }
+
+    //     $products = $productsQuery->get();
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $products,
+    //     ]);
+    // }
+
+    public function getUserProducts(Request $request)
+    {
+        $user = $request->user();
+
+        // User preferences
+        $userSizes = UserSize::where('user_id', $user->id)
+            ->get(['app_category_id', 'size_id']);
+        $userBrands = UserBrand::where('user_id', $user->id)
+            ->pluck('brand_id')
+            ->toArray();
+        $favCategories = $userSizes->pluck('app_category_id')->filter()->unique()->toArray();
+
+        $productsQuery = Product::query()
+            ->with([
+                'brand:id,name',
+                'images',
+                'variations',
+                'defaultVariationOptions',
+                'mainImage',
+                'appCategory:id,slug',
+                'productSizes.size'
+            ])
+            ->where('status', 1) // only active
+            ->where('stock', '>', 0); // only in-stock
+
+        // Group filters so user gets products by brand OR category/size
+        $productsQuery->where(function ($query) use ($userBrands, $userSizes, $favCategories) {
+            // Brand filter
+            if (!empty($userBrands)) {
+                $query->orWhereIn('brand_id', $userBrands);
+            }
+
+            // Category + Size filter
+            if ($userSizes->isNotEmpty()) {
+                foreach ($userSizes as $us) {
+                    $query->orWhere(function ($q) use ($us) {
+                        $q->where('app_category_id', $us->app_category_id)
+                        ->whereHas('productSizes', function ($q2) use ($us) {
+                            $q2->where('size_id', $us->size_id);
+                        });
+                    });
+                }
+            }
+
+            // Fallback: only categories if no sizes
+            if (empty($userSizes) && !empty($favCategories)) {
+                $query->orWhereIn('app_category_id', $favCategories);
             }
         });
+
+        $products = $productsQuery->get();
+
+        return response()->json([
+            'success' => true,
+            'count'   => $products->count(),
+            'data'    => $products,
+        ]);
     }
-
-    // If no sizes but user has category preferences, still match category
-    if ($userSizes->isEmpty() && !empty($userBrands)) {
-        // already handled by brand filter above
-    } elseif ($userSizes->isEmpty()) {
-        // fallback: if user has no size selection, get all products by category
-        $favCategories = UserSize::where('user_id', $user->id)
-            ->pluck('app_category_id')
-            ->toArray();
-
-        if (!empty($favCategories)) {
-            $productsQuery->orWhereIn('app_category_id', $favCategories);
-        }
-    }
-
-    $products = $productsQuery->get();
-
-    return response()->json([
-        'success' => true,
-        'count'   => $products->count(),
-        'data'    => $products,
-    ]);
-}
-
 
 
 
