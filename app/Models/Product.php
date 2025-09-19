@@ -103,11 +103,6 @@ class Product extends Model
     /**
      * Get the category that owns the product.
      */
-    public function category()
-    {
-        return $this->belongsTo(Category::class);
-    }
-
     /**
      * Get the product details (multilingual).
      */
@@ -304,5 +299,9 @@ class Product extends Model
     public function appCategory()
     {
         return $this->belongsTo(AppCategory::class, 'app_category_id');
+    }
+    public function attributes()
+    {
+        return $this->hasMany(ProductAttribute::class);
     }
 }

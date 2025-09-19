@@ -9,18 +9,50 @@ use App\Models\Size;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\ProductAttribute;
+use Illuminate\Support\Facades\DB;
 
 class DiscoverController extends Controller
 {
     public function filters()
     {
-        $categories = AppCategory::where('parent_id', 0)
-            ->with('children.children')
-            ->get(['id', 'slug', 'parent_id']);
+        $categories = AppCategory::withCount('products')
+            ->where('parent_id', 0)
+            ->with(['children' => function ($q) {
+                $q->withCount('products')
+                    ->with(['children' => function ($q2) {
+                        $q2->withCount('products');
+                    }]);
+            }])
+            ->get();
 
-        $brands = Brand::select('id', 'name')->get();
+        $brands = Brand::withCount('products')->get();
+        $sizes  = Size::withCount('products')->get();
 
-        $sizes = Size::select('id', 'name')->get();
+        $colors = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
+            ->where('type', 'color')
+            ->whereHas('product', function ($q) {
+                $q->where('status', 1)->where('stock', '>', 0);
+            })
+            ->groupBy('value')
+            ->get();
+
+        $styles = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
+            ->where('type', 'style')
+            ->whereHas('product', function ($q) {
+                $q->where('status', 1)->where('stock', '>', 0);
+            })
+            ->groupBy('value')
+            ->get();
+
+        $bodyFits = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
+            ->where('type', 'body_fit')
+            ->whereHas('product', function ($q) {
+                $q->where('status', 1)->where('stock', '>', 0);
+            })
+            ->groupBy('value')
+            ->get();
+
 
         $priceRange = [
             'min' => Product::min('price'),
@@ -28,47 +60,98 @@ class DiscoverController extends Controller
         ];
 
         return response()->json([
-            'categories' => $categories,
-            'brands'     => $brands,
-            'sizes'      => $sizes,
-            'price'      => $priceRange,
+            'filters' => [
+                'categories' => $categories,
+                'brands'     => $brands,
+                'sizes'      => $sizes,
+                'colors'     => $colors,
+                'styles'     => $styles,
+                'body_fits'  => $bodyFits,
+                'price'      => $priceRange,
+            ],
         ]);
     }
 
-    public function discover(Request $request)
-    {
-        $query = Product::query()
-            ->with(['brand:id,name', 'appCategory:id,slug', 'sizes:id,name', 'images']);
 
+
+    public function getFilteredProducts(Request $request)
+    {
+        $query = Product::with([
+            'brand:id,name',
+            'appCategory:id,slug',
+            'productSizes.size',
+            'attributes' // relation to ProductAttribute
+        ]);
+
+        // Category filter
         if ($request->filled('category_id')) {
             $query->where('app_category_id', $request->category_id);
         }
 
-        if ($request->filled('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
+        // Brand filter
+        if ($request->filled('brand_ids')) {
+            $query->whereIn('brand_id', (array) $request->brand_ids);
         }
 
-        if ($request->filled('size_id')) {
-            $query->whereHas('sizes', function ($q) use ($request) {
-                $q->where('sizes.id', $request->size_id);
+        // Sizes filter
+        if ($request->filled('size_ids')) {
+            $query->whereHas('productSizes', function ($q) use ($request) {
+                $q->whereIn('size_id', (array) $request->size_ids);
             });
         }
 
-        if ($request->filled('min_price') && $request->filled('max_price')) {
-            $query->whereBetween('price', [$request->min_price, $request->max_price]);
+        // Colors filter
+        if ($request->filled('colors')) {
+            $query->whereHas('attributes', function ($q) use ($request) {
+                $q->where('type', 'color')
+                    ->whereIn('value', (array) $request->colors);
+            });
         }
 
-        if ($request->sort === 'price_asc') {
-            $query->orderBy('price', 'asc');
-        } elseif ($request->sort === 'price_desc') {
-            $query->orderBy('price', 'desc');
-        } elseif ($request->sort === 'newest') {
-            $query->latest();
+        // Style filter
+        if ($request->filled('styles')) {
+            $query->whereHas('attributes', function ($q) use ($request) {
+                $q->where('type', 'style')
+                    ->whereIn('value', (array) $request->styles);
+            });
+        }
+
+        // Body fit filter
+        if ($request->filled('body_fits')) {
+            $query->whereHas('attributes', function ($q) use ($request) {
+                $q->where('type', 'body_fit')
+                    ->whereIn('value', (array) $request->body_fits);
+            });
+        }
+
+        // Price filter
+        if ($request->filled('price_min') && $request->filled('price_max')) {
+            $query->whereBetween('price', [$request->price_min, $request->price_max]);
+        }
+
+        // Sorting
+        if ($request->filled('sort_by')) {
+            switch ($request->sort_by) {
+                case 'price_low_high':
+                    $query->orderBy('price', 'asc');
+                    break;
+                case 'price_high_low':
+                    $query->orderBy('price', 'desc');
+                    break;
+                case 'latest':
+                    $query->orderBy('created_at', 'desc');
+                    break;
+                case 'popular':
+                    $query->orderBy('views', 'desc'); // or sales count
+                    break;
+            }
         }
 
         $products = $query->paginate(20);
 
-        return response()->json($products);
+        return response()->json([
+            'success' => true,
+            'data'    => $products,
+        ]);
     }
-
 }

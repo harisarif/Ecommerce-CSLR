@@ -33,4 +33,10 @@ class Brand extends Model
         'show_on_slider',
         'created_at',
     ];
+
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }
