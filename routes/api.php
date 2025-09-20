@@ -48,11 +48,10 @@ Route::prefix('v1')->group(function () {
     });
 
 
-    Route::get('/discover', [DiscoverController::class, 'discover']);
-
-    Route::get('/filters', [DiscoverController::class, 'filters']);
     Route::middleware('auth:sanctum')->group(function () {
 
+        Route::get('/getFilteredProducts', [DiscoverController::class, 'getFilteredProducts']);
+        Route::get('/filters', [DiscoverController::class, 'filters']);
         Route::prefix('user')->group(function () {
             Route::get('/logout', [AuthController::class, 'logout']);
             Route::get('/index', [UserController::class, 'index']);
