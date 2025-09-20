@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SizeController;
-use App\Http\Controllers\API\DiscoverController;
+use App\Http\Controllers\Api\DiscoverController;
 
 Route::prefix('v1')->group(function () {
 
