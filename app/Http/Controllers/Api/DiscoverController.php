@@ -16,13 +16,16 @@ class DiscoverController extends Controller
 {
     public function filters()
     {
-        $categories = AppCategory::withCount('products')
+        $categories = AppCategory::select('id', 'slug', 'parent_id') // keep parent_id for relation
+            ->withCount('products') // add product count
             ->where('parent_id', 0)
             ->with(['children' => function ($q) {
-                $q->withCount('products')
-                    ->with(['children' => function ($q2) {
-                        $q2->withCount('products');
-                    }]);
+                $q->select('id', 'slug', 'parent_id')
+                ->withCount('products')
+                ->with(['children' => function ($q2) {
+                    $q2->select('id', 'slug', 'parent_id')
+                        ->withCount('products');
+                }]);
             }])
             ->get();
 
@@ -78,9 +81,13 @@ class DiscoverController extends Controller
     {
         $query = Product::with([
             'brand:id,name',
+            'images',
+            'variations',
+            'defaultVariationOptions',
+            'mainImage',
             'appCategory:id,slug',
             'productSizes.size',
-            'attributes' // relation to ProductAttribute
+            'attributes',
         ]);
 
         // Category filter

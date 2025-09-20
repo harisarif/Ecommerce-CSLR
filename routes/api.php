@@ -44,13 +44,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/category/{category_id}', [ProductController::class, 'getProductsByCategory']);
         Route::get('/search', [ProductController::class, 'search']);
         Route::post('/create', [ProductController::class, 'store']);
-
     });
 
 
     Route::middleware('auth:sanctum')->group(function () {
 
-        Route::get('/getFilteredProducts', [DiscoverController::class, 'getFilteredProducts']);
+        Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
         Route::prefix('user')->group(function () {
             Route::get('/logout', [AuthController::class, 'logout']);
