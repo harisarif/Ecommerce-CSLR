@@ -21,29 +21,41 @@ class DiscoverController extends Controller
             ->where('parent_id', 0)
             ->with(['children' => function ($q) {
                 $q->select('id', 'slug', 'parent_id')
-                ->withCount('products')
-                ->with(['children' => function ($q2) {
-                    $q2->select('id', 'slug', 'parent_id')
-                        ->withCount('products');
-                }]);
+                    ->withCount('products')
+                    ->with(['children' => function ($q2) {
+                        $q2->select('id', 'slug', 'parent_id')
+                            ->withCount('products');
+                    }]);
             }])
             ->get();
 
         $brands = Brand::withCount('products')->get();
         $sizes  = Size::withCount('products')->get();
 
+        $colorMap = collect(config('colors'))
+            ->mapWithKeys(function ($hex, $name) {
+                // normalize keys: remove spaces, lowercase
+                $normalized = strtolower(str_replace(' ', '', $name));
+                return [$normalized => $hex];
+            });
+
         $colors = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
             ->where('type', 'color')
             ->whereHas('product', function ($q) {
-                $q->where('status', 1)->where('stock', '>', 0);
+                $q->where('status', 1);
             })
             ->groupBy('value')
-            ->get();
-
+            ->get()
+            ->map(function ($item) use ($colorMap) {
+                // normalize DB name too
+                $normalized = strtolower(str_replace(' ', '', $item->name));
+                $item->hex_code = $colorMap[$normalized] ?? null;
+                return $item;
+            });
         $styles = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
             ->where('type', 'style')
             ->whereHas('product', function ($q) {
-                $q->where('status', 1)->where('stock', '>', 0);
+                $q->where('status', 1);
             })
             ->groupBy('value')
             ->get();
@@ -51,7 +63,7 @@ class DiscoverController extends Controller
         $bodyFits = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
             ->where('type', 'body_fit')
             ->whereHas('product', function ($q) {
-                $q->where('status', 1)->where('stock', '>', 0);
+                $q->where('status', 1);
             })
             ->groupBy('value')
             ->get();
