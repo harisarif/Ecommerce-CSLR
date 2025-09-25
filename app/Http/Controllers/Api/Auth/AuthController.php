@@ -52,7 +52,7 @@ class AuthController extends Controller
     public function resendEmailLogin(Request $request)
     {
         $request->validate([
-            'email' => 'required|email|exists:users,email',
+            'email' => 'required|email',
         ]);
 
         $email = $request->email;
