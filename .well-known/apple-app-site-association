@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": “FJ9B2XU9SH.com.selr.app",
+        "paths": [ "/api/v1/auth/email-login-verify/*" ]
+      }
+    ]
+  }
+}
