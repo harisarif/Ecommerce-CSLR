@@ -82,24 +82,24 @@ class Image extends Model
     // }
 
 
-        public function getImageDefaultAttribute($value)
+    public function getImageDefaultAttribute($value)
     {
-        return $value ? 'uploads/' . $value : null;
+        return $value ? url('uploads/' . $value) : url('uploads/default.png');
     }
 
     /**
-     * Get the big image path with uploads/ prefix.
+     * Append full URL to image_big
      */
     public function getImageBigAttribute($value)
     {
-        return $value ? 'uploads/' . $value : null;
+        return $value ? url('uploads/' . $value) : url('uploads/default.png');
     }
 
     /**
-     * Get the small image path with uploads/ prefix.
+     * Append full URL to image_small
      */
     public function getImageSmallAttribute($value)
     {
-        return $value ? 'uploads/' . $value : null;
+        return $value ? url('uploads/' . $value) : url('uploads/default.png');
     }
 }
