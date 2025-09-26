@@ -51,33 +51,55 @@ class Image extends Model
     /**
      * Get the full URL for the default image.
      */
-    public function getDefaultImageUrl()
+    // public function getDefaultImageUrl()
+    // {
+    //     if ($this->storage === 'local') {
+    //         return asset('storage/' . $this->image_default);
+    //     }
+    //     return $this->image_default;
+    // }
+
+    // /**
+    //  * Get the full URL for the big image.
+    //  */
+    // public function getBigImageUrl()
+    // {
+    //     if ($this->storage === 'local') {
+    //         return asset('storage/' . $this->image_big);
+    //     }
+    //     return $this->image_big;
+    // }
+
+    // /**
+    //  * Get the full URL for the small image.
+    //  */
+    // public function getSmallImageUrl()
+    // {
+    //     if ($this->storage === 'local') {
+    //         return asset('storage/' . $this->image_small);
+    //     }
+    //     return $this->image_small;
+    // }
+
+
+        public function getImageDefaultAttribute($value)
     {
-        if ($this->storage === 'local') {
-            return asset('storage/' . $this->image_default);
-        }
-        return $this->image_default;
+        return $value ? 'uploads/' . $value : null;
     }
 
     /**
-     * Get the full URL for the big image.
+     * Get the big image path with uploads/ prefix.
      */
-    public function getBigImageUrl()
+    public function getImageBigAttribute($value)
     {
-        if ($this->storage === 'local') {
-            return asset('storage/' . $this->image_big);
-        }
-        return $this->image_big;
+        return $value ? 'uploads/' . $value : null;
     }
 
     /**
-     * Get the full URL for the small image.
+     * Get the small image path with uploads/ prefix.
      */
-    public function getSmallImageUrl()
+    public function getImageSmallAttribute($value)
     {
-        if ($this->storage === 'local') {
-            return asset('storage/' . $this->image_small);
-        }
-        return $this->image_small;
+        return $value ? 'uploads/' . $value : null;
     }
 }
