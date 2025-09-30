@@ -12,6 +12,9 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\SizeController;
 use App\Http\Controllers\Api\DiscoverController;
+use App\Http\Controllers\Api\ShopController;
+use App\Http\Controllers\Api\OfferController;
+
 
 Route::prefix('v1')->group(function () {
 
@@ -47,7 +50,7 @@ Route::prefix('v1')->group(function () {
     });
 
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware('auth:api')->group(function () {
 
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
@@ -59,9 +62,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/check-token', [AuthController::class, 'checkToken']);
         });
 
-
+        
         Route::prefix('product')->group(function () {
             Route::get('/get', [ProductController::class, 'getUserProducts']);
+            Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
         });
 
         Route::prefix('cart')->group(function () {
@@ -82,6 +86,28 @@ Route::prefix('v1')->group(function () {
             Route::get('/getOrders', [OrderController::class, 'getUserOrders']);
             Route::post('/cancel', [OrderController::class, 'cancelOrder']);
         });
+
+
+        // Shops
+        Route::prefix('shop')->group(function () {
+            Route::post('/create', [ShopController::class, 'store']);
+            Route::get('/my-shop', [ShopController::class, 'myShop']);
+            Route::get('/{id}', [ShopController::class, 'show']);
+        });   
+
+        // Offers
+        Route::prefix('offer')->group(function () {
+            Route::post('/create', [OfferController::class, 'store']);
+            Route::get('/sent', [OfferController::class, 'sent']);
+            Route::get('/received', [OfferController::class, 'received']);
+            Route::put('/{id}', [OfferController::class, 'update']);
+        });   
+
+        // Inbox
+        Route::prefix('inbox')->group(function () {
+           Route::get('/inbox', [InboxController::class, 'index']);
+        });   
+           
     });
     Route::post('/check-username', [UserController::class, 'checkUsername']);
     Route::apiResource('sizes', SizeController::class);

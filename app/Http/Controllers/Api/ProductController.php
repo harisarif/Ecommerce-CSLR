@@ -269,6 +269,75 @@ class ProductController extends Controller
     }
 
 
+    public function getProductWithShop($id)
+    {
+        $product = Product::with([
+            'details',
+            'licenseKeys',
+            'searchIndexes',
+            'appCategory',
+            'user',
+            'images',
+            'variations',
+            'defaultVariationOptions',
+            'mainImage',
+            'sizes',
+            'shop'
+        ])->find($id);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found.'
+            ], 404);
+        }
+
+        // ✅ Fetch related products
+        $relatedProducts = Product::with([
+            'mainImage',
+            'shop'
+        ])
+        ->where('id', '!=', $product->id)
+        ->where(function ($q) use ($product) {
+            if ($product->category_id) {
+                $q->where('category_id', $product->category_id);
+            } elseif ($product->app_category_id) {
+                $q->where('app_category_id', $product->app_category_id);
+            }
+        })
+        ->limit(6)
+        ->get();
+
+        // ✅ Suggested prices (all lower than actual)
+        $actualPrice = $product->price;
+
+        $suggestedPrices = [
+            [
+                'price' => round($actualPrice * 0.95), // 5% off
+                'recommended' => false
+            ],
+            [
+                'price' => round($actualPrice * 0.9), // 10% off (recommended)
+                'recommended' => true
+            ],
+            [
+                'price' => round($actualPrice * 0.85), // 15% off
+                'recommended' => false
+            ],
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $product,
+            'related_products' => $relatedProducts,
+            'suggested_prices' => $suggestedPrices
+        ]);
+    }
+
+
+
+
+
 
 
 

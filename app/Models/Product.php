@@ -304,4 +304,19 @@ class Product extends Model
     {
         return $this->hasMany(ProductAttribute::class);
     }
+    public function shop()
+    {
+        return $this->belongsTo(Shop::class);
+    }
+
+    public function offers()
+    {
+        return $this->hasMany(Offer::class);
+    }
+
+    public function owner()
+    {
+        return $this->shop ? $this->shop->user() : $this->user();
+    }
+
 }

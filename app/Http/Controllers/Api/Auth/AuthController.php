@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\EmailLoginLinkMail;
 use App\Models\UserBrand;
 use App\Models\UserSize;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -90,7 +92,7 @@ class AuthController extends Controller
         $user = User::where('email', $record->email)->first();
 
         if ($user) {
-            $apiToken = $user->createToken('auth-token')->plainTextToken;
+            $apiToken = JWTAuth::fromUser($user);
             $record->delete();
 
             return response()->json([
@@ -118,13 +120,9 @@ class AuthController extends Controller
     public function checkToken(Request $request)
     {
         try {
-            $user = $request->user();
-
+            $user = JWTAuth::parseToken()->authenticate();
             if (!$user) {
-                return response()->json([
-                    'status' => 'invalid',
-                    'message' => 'Token is invalid or expired',
-                ], 401);
+                return response()->json(['status' => 'invalid', 'message' => 'Token is invalid or expired'], 401);
             }
 
             return response()->json([
@@ -139,6 +137,7 @@ class AuthController extends Controller
             ], 401);
         }
     }
+
 
     public function registerVendor(Request $request)
     {
@@ -189,7 +188,7 @@ class AuthController extends Controller
             }
         }
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+       $token = JWTAuth::fromUser($user);
 
         return response()->json([
             'message'      => 'User registered successfully',
@@ -214,12 +213,14 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = JWTAuth::fromUser($user);
 
         return response()->json([
             'message' => 'User registered successfully',
             'user' => $user,
             'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60
         ]);
     }
 
@@ -228,31 +229,21 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|string|email|max:255',
-            'password' => 'required|string|min:4',
-        ]);
+        $credentials = $request->only('email', 'password');
 
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], 401);
+        if (!$token = Auth::attempt($credentials)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
-
-        // Delete existing tokens for this user (optional, for single device login)
-        $user->tokens()->delete();
-
-        // Create new token
-        $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
             'message' => 'User logged in successfully',
-            'user' => $user,
+            'user' => Auth::user(),
             'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60
         ]);
     }
+
 
     /**
      * Send password reset code to user's email
@@ -392,34 +383,35 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Update user's password
         $user = User::where('email', $request->email)->first();
         $user->update([
             'password' => Hash::make($request->password),
         ]);
 
-        // Delete all password reset tokens for this email
+        // delete reset records
         PasswordReset::where('email', $request->email)->delete();
 
-        // Revoke all user's tokens (log out from all devices)
-        $user->tokens()->delete();
+        // ✅ No Sanctum tokens to delete here!
 
-        // Create new token for immediate login
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = JWTAuth::fromUser($user);
 
         return response()->json([
-            'message' => 'Password has been reset successfully',
-            'user' => $user,
+            'message'      => 'Password has been reset successfully',
+            'user'         => $user,
             'access_token' => $token,
         ]);
     }
 
 
-    public function logout(Request $request)
+
+    public function logout()
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json([
-            'message' => 'User logged out successfully',
-        ]);
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+            return response()->json(['message' => 'User logged out successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to logout, token invalid'], 500);
+        }
     }
+
 }

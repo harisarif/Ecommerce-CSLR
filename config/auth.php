@@ -34,10 +34,15 @@ return [
     | Supported: "session"
     |
     */
-
+  
     'guards' => [
         'web' => [
             'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'api' => [
+            'driver' => 'jwt',       // 🔑 use JWT instead of sanctum
             'provider' => 'users',
         ],
     ],

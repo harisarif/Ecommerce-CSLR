@@ -5,12 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\DB;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -73,6 +73,28 @@ class User extends Authenticatable
         'account_delete_req',
         'account_delete_req_date',
     ];
+
+
+    
+    /**
+     * JWT identifier
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Custom claims for JWT
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
 
     /**
      * The attributes that should be hidden for serialization.
@@ -405,5 +427,21 @@ class User extends Authenticatable
     public function brands()
     {
         return $this->hasMany(UserBrand::class);
+    }
+
+
+    public function shop()
+    {
+        return $this->hasOne(Shop::class);
+    }
+
+    public function offersSent()
+    {
+        return $this->hasMany(Offer::class, 'buyer_id');
+    }
+
+    public function offersReceived()
+    {
+        return $this->hasMany(Offer::class, 'seller_id');
     }
 }
