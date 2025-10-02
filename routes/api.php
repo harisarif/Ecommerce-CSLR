@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SizeController;
 use App\Http\Controllers\Api\DiscoverController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\OfferController;
+use App\Http\Controllers\Api\InboxController;
 
 
 Route::prefix('v1')->group(function () {
@@ -93,6 +94,14 @@ Route::prefix('v1')->group(function () {
             Route::post('/create', [ShopController::class, 'store']);
             Route::get('/my-shop', [ShopController::class, 'myShop']);
             Route::get('/{id}', [ShopController::class, 'show']);
+
+
+            Route::post('{id}/review', [ShopController::class, 'addReview']);
+            Route::get('{id}/reviews', [ShopController::class, 'getReviews']);
+
+            Route::post('{id}/follow', [ShopController::class, 'follow']);
+            Route::post('{id}/unfollow', [ShopController::class, 'unfollow']);
+            Route::get('{id}/is-following', [ShopController::class, 'isFollowing']);
         });   
 
         // Offers

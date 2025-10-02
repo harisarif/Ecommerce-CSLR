@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Shop;
+use App\Models\ShopReview;
+use App\Models\ShopFollower;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -59,30 +61,109 @@ class ShopController extends Controller
     public function myShop(Request $request)
     {
         $user = $request->user();
-        $shop = $user->shop()->with('products')->first();
+
+        $shop = $user->shop()
+            ->with('products')
+            ->withCount(['followers', 'reviews'])   // ✅ include counts
+            ->withAvg('reviews', 'rating')
+            ->first();
 
         if (!$shop) {
             return response()->json(['message' => 'No shop found for this user'], 404);
         }
 
-        return response()->json(['data' => $shop]);
+        return response()->json([
+            'data' => $shop,
+            'followers_count' => $shop->followers_count,
+            'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
+            'reviews_count' => $shop->reviews_count,
+        ]);
     }
+
 
     // public shop page by id (or slug)
     public function show($id)
     {
-        // allow numeric id or slug
-        $shop = null;
-        if (is_numeric($id)) {
-            $shop = Shop::with('products')->find($id);
-        } else {
-            $shop = Shop::with('products')->where('slug', $id)->first();
-        }
+        $shop = is_numeric($id)
+            ? Shop::with('products')
+                ->withCount(['followers', 'reviews']) // ✅ include reviews_count directly
+                ->withAvg('reviews', 'rating')
+                ->find($id)
+            : Shop::with('products')
+                ->withCount(['followers', 'reviews'])
+                ->withAvg('reviews', 'rating')
+                ->where('slug', $id)
+                ->first();
 
         if (!$shop) {
             return response()->json(['message' => 'Shop not found'], 404);
         }
 
-        return response()->json(['data' => $shop]);
+        return response()->json([
+            'data' => $shop,
+            'followers_count' => $shop->followers_count,
+            'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
+            'reviews_count' => $shop->reviews_count, // ✅ directly from withCount
+        ]);
+    }
+
+
+
+
+
+    // ✅ Add Review
+    public function addReview(Request $request, $id)
+    {
+        $request->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string'
+        ]);
+
+        $shop = Shop::findOrFail($id);
+
+        $review = ShopReview::updateOrCreate(
+            ['shop_id' => $shop->id, 'user_id' => $request->user()->id],
+            ['rating' => $request->rating, 'comment' => $request->comment]
+        );
+
+        return response()->json(['message' => 'Review saved', 'data' => $review]);
+    }
+
+    // ✅ Get Reviews
+    public function getReviews($id)
+    {
+        $shop = Shop::findOrFail($id);
+        $reviews = $shop->reviews()->with('user')->latest()->get();
+
+        return response()->json(['data' => $reviews]);
+    }
+
+    // ✅ Follow Shop
+    public function follow(Request $request, $id)
+    {
+        $shop = Shop::findOrFail($id);
+
+        $shop->followers()->syncWithoutDetaching([$request->user()->id]);
+
+        return response()->json(['message' => 'Followed shop']);
+    }
+
+    // ✅ Unfollow Shop
+    public function unfollow(Request $request, $id)
+    {
+        $shop = Shop::findOrFail($id);
+
+        $shop->followers()->detach($request->user()->id);
+
+        return response()->json(['message' => 'Unfollowed shop']);
+    }
+
+    // ✅ Check if Following
+    public function isFollowing(Request $request, $id)
+    {
+        $shop = Shop::findOrFail($id);
+        $isFollowing = $shop->followers()->where('user_id', $request->user()->id)->exists();
+
+        return response()->json(['following' => $isFollowing]);
     }
 }

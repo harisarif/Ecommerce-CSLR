@@ -63,4 +63,17 @@ class Shop extends Model
         }
         return null;
     }
+
+    // reviews
+    public function reviews()
+    {
+        return $this->hasMany(ShopReview::class);
+    }
+
+    // followers
+    public function followers()
+    {
+        return $this->belongsToMany(User::class, 'shop_followers');
+    }
+
 }
