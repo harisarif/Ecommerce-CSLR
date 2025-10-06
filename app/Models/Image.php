@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Image extends Model
 {
     use HasFactory;
-
+   public $timestamps = false; // 👈 add this line
     /**
      * The attributes that are mass assignable.
      *

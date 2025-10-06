@@ -41,18 +41,17 @@ Route::prefix('v1')->group(function () {
     Route::prefix('brands')->group(function () {
         Route::get('/list', [BrandController::class, 'index']);
     });
+    
     Route::prefix('product')->group(function () {
         Route::get('/list', [ProductController::class, 'ProductList']);
         Route::get('/special-offers', [ProductController::class, 'getSpecialOfferProducts']);
         Route::get('/promoted', [ProductController::class, 'getPromotedProducts']);
         Route::get('/category/{category_id}', [ProductController::class, 'getProductsByCategory']);
         Route::get('/search', [ProductController::class, 'search']);
-        Route::post('/create', [ProductController::class, 'store']);
     });
 
-
     Route::middleware('auth:api')->group(function () {
-
+        Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
         Route::prefix('user')->group(function () {

@@ -167,6 +167,26 @@ class AuthController extends Controller
             'role_id'         => 2, // default role
         ]);
 
+
+        // ✅ Create dummy shop automatically
+        $shopName = $user->first_name . "'s Shop";
+        $slug = Str::slug($shopName);
+
+        // Make sure slug is unique
+        $existingSlugCount = \App\Models\Shop::where('slug', $slug)->count();
+        if ($existingSlugCount > 0) {
+            $slug .= '-' . Str::random(4);
+        }
+
+        $shop = \App\Models\Shop::create([
+            'user_id'     => $user->id,
+            'name'        => $shopName,
+            'slug'        => $slug,
+            'description' => 'Welcome to ' . $shopName . '!',
+            'phone'       => null,
+            'address'     => $user->billing_address,
+            'settings'    => [],
+        ]);
         // Save sizes (store IDs)
         if ($request->has('sizes')) {
             foreach ($request->sizes as $sizeData) {

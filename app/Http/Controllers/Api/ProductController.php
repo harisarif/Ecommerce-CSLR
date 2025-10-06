@@ -9,6 +9,10 @@ use App\Models\UserBrand;
 use App\Models\UserSize;
 use App\Models\Wishlist;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+
+use Illuminate\Support\Str;
+
 class ProductController extends Controller
 {
     public function ProductList(Request $request)
@@ -114,52 +118,230 @@ class ProductController extends Controller
     }
 
 
+    // public function store(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         'slug' => 'required|string|max:255|unique:products,slug',
+    //         'product_type' => 'required|string',
+    //         'listing_type' => 'required|string',
+    //         'sku' => 'required|string|max:100|unique:products,sku',
+    //         'price' => 'required|integer',
+    //         'price_discounted' => 'nullable|integer',
+    //         'currency' => 'required|string|max:10',
+    //         'discount_rate' => 'nullable|integer',
+    //         'vat_rate' => 'nullable|numeric',
+    //         'user_id' => 'required|exists:users,id',
+    //         'status' => 'boolean',
+    //         'stock' => 'integer',
+    //         'brand_id' => 'nullable|exists:brands,id',
+    //         'app_category_id' => 'nullable|exists:app_categories,id',
+
+    //         // 👇 extra validation for sizes
+    //         'size_ids' => 'array',
+    //         'size_ids.*' => 'exists:sizes,id',
+
+    //         'attributes' => 'array',
+    //         'attributes.*.type' => 'required|string|max:50',
+    //         'attributes.*.value' => 'required|string|max:100',
+    //     ]);
+
+    //     // create product
+    //     $product = Product::create($validated);
+
+    //     // attach sizes if provided
+    //     if ($request->has('size_ids')) {
+    //         $product->sizes()->attach($validated['size_ids']);
+    //     }
+
+    //     if ($request->has('attributes')) {
+    //         foreach ($validated['attributes'] as $attr) {
+    //             $product->attributes()->create($attr);
+    //         }
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $product->load('sizes') // return with sizes
+    //     ]);
+    // }
+
+
+
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'slug' => 'required|string|max:255|unique:products,slug',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'short_description' => 'nullable|string|max:500',
+            'slug' => 'nullable|string|max:255|unique:products,slug',
             'product_type' => 'required|string',
             'listing_type' => 'required|string',
-            'sku' => 'required|string|max:100|unique:products,sku',
+            'sku' => 'nullable|string|max:100|unique:products,sku',
             'price' => 'required|integer',
             'price_discounted' => 'nullable|integer',
             'currency' => 'required|string|max:10',
             'discount_rate' => 'nullable|integer',
             'vat_rate' => 'nullable|numeric',
-            'user_id' => 'required|exists:users,id',
             'status' => 'boolean',
             'stock' => 'integer',
             'brand_id' => 'nullable|exists:brands,id',
             'app_category_id' => 'nullable|exists:app_categories,id',
 
-            // 👇 extra validation for sizes
+            // 🧩 Sizes
             'size_ids' => 'array',
             'size_ids.*' => 'exists:sizes,id',
 
+            // 🧩 Attributes
             'attributes' => 'array',
             'attributes.*.type' => 'required|string|max:50',
             'attributes.*.value' => 'required|string|max:100',
+
+            // 📸 Multiple images
+            'images' => 'array',
+            'images.*' => 'file|image|mimes:jpeg,png,jpg,webp|max:2048',
+
+            // 🧩 Optional: measurements
+            'measurement_width' => 'nullable|numeric',
+            'measurement_length' => 'nullable|numeric',
+
+            // 🧩 Optional: condition
+            'condition' => 'nullable|string|in:new_with_tags,new_without_tags,like_new,excellent_condition,good_condition,fair_condition,vintage_pre_loved,for_parts_repair',
         ]);
 
-        // create product
-        $product = Product::create($validated);
+        try {
+            DB::beginTransaction();
 
-        // attach sizes if provided
-        if ($request->has('size_ids')) {
-            $product->sizes()->attach($validated['size_ids']);
-        }
+            // auto generate slug if not provided
+            $slug = $validated['slug'] ?? Str::slug(Str::random(8));
 
-        if ($request->has('attributes')) {
-            foreach ($validated['attributes'] as $attr) {
-                $product->attributes()->create($attr);
+            // auto SKU if missing
+            $sku = $validated['sku'] ?? strtoupper(Str::random(10));
+            $user = auth()->user();
+
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
             }
-        }
 
-        return response()->json([
-            'success' => true,
-            'data' => $product->load('sizes') // return with sizes
-        ]);
+            if (!$user->shop) {
+                return response()->json(['message' => 'Shop not found for this user.'], 404);
+            }
+
+            // 💾 Create product
+            $product = Product::create([
+                'slug' => $slug,
+                'product_type' => $validated['product_type'],
+                'listing_type' => $validated['listing_type'],
+                'sku' => $sku,
+                'price' => $validated['price'],
+                'price_discounted' => $validated['price_discounted'] ?? null,
+                'currency' => $validated['currency'],
+                'discount_rate' => $validated['discount_rate'] ?? null,
+                'vat_rate' => $validated['vat_rate'] ?? null,
+                'user_id' => $user->id,
+                'shop_id' => $user->shop->id,
+                'status' => $validated['status'] ?? true,
+                'stock' => $validated['stock'] ?? 0,
+                'brand_id' => $validated['brand_id'] ?? null,
+                'app_category_id' => $validated['app_category_id'] ?? null,
+            ]);
+
+            // 📝 Create product details (multi-language ready)
+            $product->details()->create([
+                'lang_id' => 1, 
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'short_description' => $validated['short_description'] ?? null,
+            ]);
+
+            // 🧩 Attach sizes
+            if (!empty($validated['size_ids'])) {
+                foreach ($validated['size_ids'] as $sizeId) {
+                    \App\Models\ProductSize::create([
+                        'product_id' => $product->id,
+                        'size_id' => $sizeId,
+                        'stock' => $validated['stock'] ?? 0,
+                    ]);
+                }
+            }
+
+            // 🧩 Handle attributes (color, material, etc.)
+            if (!empty($validated['attributes'])) {
+                foreach ($validated['attributes'] as $attr) {
+                    \App\Models\ProductAttribute::create([
+                        'product_id' => $product->id,
+                        'type' => $attr['type'],
+                        'value' => $attr['value'],
+                    ]);
+                }
+            }
+
+            // 🧩 Add measurements if provided
+            if (!empty($validated['measurement_width'])) {
+                \App\Models\ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'measurement_width',
+                    'value' => $validated['measurement_width'] . ' in',
+                ]);
+            }
+            if (!empty($validated['measurement_length'])) {
+                \App\Models\ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'measurement_length',
+                    'value' => $validated['measurement_length'] . ' in',
+                ]);
+            }
+
+            // 🧩 Add product condition if provided
+            if (!empty($validated['condition'])) {
+                \App\Models\ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'condition',
+                    'value' => $validated['condition'],
+                ]);
+            }
+
+            // 📸 Handle image uploads
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $image) {
+                    $folderPath = 'uploads/202410';
+                    $destinationPath = public_path($folderPath);
+
+                    // Ensure directory exists
+                    if (!file_exists($destinationPath)) {
+                        mkdir($destinationPath, 0755, true);
+                    }
+
+                    // Create unique filename
+                    $filename = uniqid() . '.' . $image->getClientOriginalExtension();
+
+                    // Move file to public/uploads/202410
+                    $image->move($destinationPath, $filename);
+
+                    // Save relative path in DB
+                    \App\Models\Image::create([
+                        'product_id' => $product->id,
+                        'image' => $folderPath . '/' . $filename,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product created successfully',
+                'data' => $product->load(['sizes.size', 'attributes', 'images'])
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Product creation failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
+
 
 
 

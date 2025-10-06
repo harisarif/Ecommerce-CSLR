@@ -12,6 +12,7 @@ class ProductDetail extends Model
      *
      * @var string
      */
+    public $timestamps = false; // 👈 add this line
     protected $table = 'product_details';
 
     /**
