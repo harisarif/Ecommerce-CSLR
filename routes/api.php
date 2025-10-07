@@ -30,6 +30,7 @@ Route::prefix('v1')->group(function () {
         Route::post('reset-password', [AuthController::class, 'resetPassword']);
         Route::get('/categories-with-sizes', [CategoryController::class, 'getCategoriesWithSizes']);
         Route::post('/resend-email-login', [AuthController::class, 'resendEmailLogin']);
+        Route::get('/getProductMeta', [CategoryController::class, 'getProductMeta']);
     });
     Route::prefix('category')->group(function () {
         Route::get('/list', [CategoryController::class, 'index']); // paginate list
