@@ -138,52 +138,51 @@ class CategoryController extends Controller
 
     public function getProductMeta(Request $request)
     {
-    // ✅ Fetch top-level categories
-    $parents = AppCategory::where('parent_id', 0)
-        ->get(['id', 'slug', 'title_meta_tag', 'parent_id']);
+            // ✅ 1. Load all top-level categories and their tree
+        $parents = AppCategory::with('children.children.children')
+            ->where('parent_id', 0)
+            ->get(['id', 'slug', 'title_meta_tag', 'parent_id']);
 
-    // ✅ Map over parents and attach children + sizes logic
-    $categories = $parents->map(function ($parent) {
-        $category = AppCategory::with('children.children')
-            ->where('id', $parent->id)
-            ->first(['id', 'slug', 'title_meta_tag', 'parent_id']);
+        // ✅ 2. Recursive cleaner (different key names per depth)
+        $mapTree = function ($category, $level = 0) use (&$mapTree) {
+            $item = [
+                'id' => $category->id,
+                'slug' => $category->slug,
+                'title_meta_tag' => $category->title_meta_tag,
+            ];
 
-        if ($category) {
-            $category->children->transform(function ($child) {
-                $slug = strtolower($child->slug);
-                $type = null;
+            if ($category->children && $category->children->isNotEmpty()) {
+                $nextLevel = $level + 1;
 
-                // 🧠 Detect size type by category slug
-                if (str_contains($slug, 'top')) {
-                    $type = 'clothing';
-                } elseif (str_contains($slug, 'bottom')) {
-                    $type = 'pants';
-                } elseif (str_contains($slug, 'shoe')) {
-                    $type = 'shoes';
-                } elseif (str_contains($slug, 'ring')) {
-                    $type = 'rings';
-                } elseif (str_contains($slug, 'hat')) {
-                    $type = 'hats';
-                } elseif (str_contains($slug, 'bag')) {
-                    $type = 'Bag';
+                // change key name based on level
+                if ($nextLevel === 1) {
+                    $key = 'child_categories';
+                } elseif ($nextLevel === 2) {
+                    $key = 'sub_categories';
+                } else {
+                    $key = 'sub_sub_categories';
                 }
 
-                // ✅ Directly fetch sizes from sizes table by type
-                $sizes = $type
-                    ? \App\Models\Size::where('type', $type)->get(['id', 'name', 'type'])
-                    : collect();
+                $item[$key] = $category->children->map(function ($child) use ($mapTree, $nextLevel) {
+                    return $mapTree($child, $nextLevel);
+                })->values();
+            }
 
-                $child->sizes = $sizes->values();
+            return $item;
+        };
 
-                return $child->only(['id', 'slug', 'title_meta_tag', 'sizes']);
-            });
+        $categories = $parents->map(fn($category) => $mapTree($category))->values();
 
-            $category->categories = $category->children;
-            unset($category->children);
-        }
-
-        return $category;
-    });
+            // ✅ 3. Fetch sizes grouped by type
+            $sizes = \App\Models\Size::select('id', 'name', 'type')
+                ->get()
+                ->groupBy('type')
+                ->map(function ($group) {
+                    return $group->map(fn($s) => [
+                        'id' => $s->id,
+                        'name' => $s->name
+                    ])->values();
+                });
 
         // ✅ Fetch brands
         $brands = Brand::select('id', 'name', 'image_path')->get();
@@ -237,6 +236,7 @@ class CategoryController extends Controller
         return response()->json([
             'success'     => true,
             'categories'  => $categories,
+            'sizes'       => $sizes,
             'brands'      => $brands,
             'conditions'  => $conditions,
             'colors'      => $colors,
