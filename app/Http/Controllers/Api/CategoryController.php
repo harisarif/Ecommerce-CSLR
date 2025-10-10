@@ -51,7 +51,7 @@ class CategoryController extends Controller
     {
         $validated = $request->validate([
             'slug' => 'sometimes|string|max:255|unique:app_categories,slug,' . $category->id,
-             'parent_id' => 'nullable|integer|min:0',
+            'parent_id' => 'nullable|integer|min:0',
         ]);
         // If parent_id = 0 → make it null before saving
         if (isset($validated['parent_id']) && $validated['parent_id'] == 0) {
@@ -98,7 +98,7 @@ class CategoryController extends Controller
             $category = AppCategory::with([
                 'children.children.products.productSizes.size'
             ])->where('id', $parent->id)
-            ->first(['id', 'slug', 'parent_id']);
+                ->first(['id', 'slug', 'parent_id']);
 
             if ($category) {
                 $category->children->transform(function ($child) {
@@ -136,114 +136,126 @@ class CategoryController extends Controller
     }
 
 
+
     public function getProductMeta(Request $request)
     {
-            // ✅ 1. Load all top-level categories and their tree
-        $parents = AppCategory::with('children.children.children')
-            ->where('parent_id', 0)
+        $parents = AppCategory::where('parent_id', 0)
             ->get(['id', 'slug', 'title_meta_tag', 'parent_id']);
 
-        // ✅ 2. Recursive cleaner (different key names per depth)
-        $mapTree = function ($category, $level = 0) use (&$mapTree) {
-            $item = [
-                'id' => $category->id,
-                'slug' => $category->slug,
-                'title_meta_tag' => $category->title_meta_tag,
-            ];
+        $categories = $parents->map(function ($parent) {
+            $category = AppCategory::with('children.children')
+                ->where('id', $parent->id)
+                ->first(['id', 'slug', 'title_meta_tag', 'parent_id']);
 
-            if ($category->children && $category->children->isNotEmpty()) {
-                $nextLevel = $level + 1;
+            if ($category) {
+                $attachSizes = function ($cat, $level = 1) use (&$attachSizes) {
+                    $slug = strtolower($cat->slug);
+                    $type = null;
 
-                // change key name based on level
-                if ($nextLevel === 1) {
-                    $key = 'child_categories';
-                } elseif ($nextLevel === 2) {
-                    $key = 'sub_categories';
-                } else {
-                    $key = 'sub_sub_categories';
-                }
+                    // Detect type by slug
+                    if (str_contains($slug, 'tshirt') || str_contains($slug, 'shirt') || str_contains($slug, 'top')) {
+                        $type = 'clothing';
+                    } elseif (str_contains($slug, 'jean') || str_contains($slug, 'pant') || str_contains($slug, 'short')) {
+                        $type = 'pants';
+                    } elseif (str_contains($slug, 'shoe') || str_contains($slug, 'boot') || str_contains($slug, 'sneaker')) {
+                        $type = 'shoes';
+                    } elseif (str_contains($slug, 'ring')) {
+                        $type = 'rings';
+                    } elseif (str_contains($slug, 'hat') || str_contains($slug, 'cap')) {
+                        $type = 'hats';
+                    } elseif (str_contains($slug, 'bag')) {
+                        $type = 'bag';
+                    }
 
-                $item[$key] = $category->children->map(function ($child) use ($mapTree, $nextLevel) {
-                    return $mapTree($child, $nextLevel);
-                })->values();
+                    // ✅ Only attach sizes for leaf categories
+                    $sizes = collect();
+                    if (!$cat->children || $cat->children->isEmpty()) {
+                        if ($type) {
+                            $sizes = \App\Models\Size::where('type', $type)
+                                ->get(['id', 'name', 'type']);
+                        }
+                    }
+
+                    // recursively attach to children
+                    $children = [];
+                    if ($cat->children && $cat->children->count()) {
+                        $children = $cat->children->map(
+                            fn($child) => $attachSizes($child, $level + 1)
+                        )->filter()->values();
+                    }
+
+                    // ✅ Dynamic naming (first = children, second = sub_children)
+                    $childKey = $level === 1 ? 'children' : 'sub_children';
+
+                    $data = [
+                        'id' => $cat->id,
+                        'slug' => $cat->slug,
+                        'title_meta_tag' => $cat->title_meta_tag,
+                    ];
+
+                    if ($sizes->isNotEmpty()) {
+                        $data['sizes'] = $sizes;
+                    }
+
+                    if (!empty($children)) {
+                        $data[$childKey] = $children;
+                    }
+
+                    return $data;
+                };
+
+                $category = $attachSizes($category);
             }
 
-            return $item;
-        };
-
-        $categories = $parents->map(fn($category) => $mapTree($category))->values();
-
-            // ✅ 3. Fetch sizes grouped by type
-            $sizes = \App\Models\Size::select('id', 'name', 'type')
-                ->get()
-                ->groupBy('type')
-                ->map(function ($group) {
-                    return $group->map(fn($s) => [
-                        'id' => $s->id,
-                        'name' => $s->name
-                    ])->values();
-                });
-
-        // ✅ Fetch brands
+            return $category;
+        });
+        // ✅ Fetch brands, colors, etc. same as before
         $brands = Brand::select('id', 'name', 'image_path')->get();
+        $colors = collect(config('colors'))->map(fn($hex, $name) => ['name' => $name, 'hex' => $hex])->values();
 
-        // ✅ Load colors from config/colors.php
-        $colors = collect(config('colors'))->map(function ($hex, $name) {
-            return [
-                'name' => $name,
-                'hex'  => $hex,
-            ];
-        })->values();
-
-        // ✅ Static conditions
         $conditions = [
-            [ 'key' => 'new_with_tags', 'label' => 'New with Tags', 'description' => 'Brand new, never worn, original tags still attached.' ],
-            [ 'key' => 'new_without_tags', 'label' => 'New without Tags', 'description' => 'Brand new and never worn, but no tags.' ],
-            [ 'key' => 'like_new', 'label' => 'Like New', 'description' => 'Worn once or twice, no signs of wear.' ],
-            [ 'key' => 'excellent', 'label' => 'Excellent Condition', 'description' => 'Very lightly worn, no flaws or damage.' ],
-            [ 'key' => 'good', 'label' => 'Good Condition', 'description' => 'Gently used, may show light wear (e.g., minor fading).' ],
-            [ 'key' => 'fair', 'label' => 'Fair Condition', 'description' => 'Clearly used, visible wear or small flaws, still wearable.' ],
-            [ 'key' => 'vintage', 'label' => 'Vintage / Pre-loved', 'description' => 'Older item with character, may show signs of age.' ],
-            [ 'key' => 'repair', 'label' => 'For Parts / Repair', 'description' => 'Damaged, stained, or needs fixing — sold as is.' ],
+            ['key' => 'new_with_tags', 'label' => 'New with Tags', 'description' => 'Brand new, never worn, original tags still attached.'],
+            ['key' => 'new_without_tags', 'label' => 'New without Tags', 'description' => 'Brand new and never worn, but no tags.'],
+            ['key' => 'like_new', 'label' => 'Like New', 'description' => 'Worn once or twice, no signs of wear.'],
+            ['key' => 'excellent', 'label' => 'Excellent Condition', 'description' => 'Very lightly worn, no flaws or damage.'],
+            ['key' => 'good', 'label' => 'Good Condition', 'description' => 'Gently used, may show light wear (e.g., minor fading).'],
+            ['key' => 'fair', 'label' => 'Fair Condition', 'description' => 'Clearly used, visible wear or small flaws, still wearable.'],
+            ['key' => 'vintage', 'label' => 'Vintage / Pre-loved', 'description' => 'Older item with character, may show signs of age.'],
+            ['key' => 'repair', 'label' => 'For Parts / Repair', 'description' => 'Damaged, stained, or needs fixing — sold as is.'],
         ];
 
-        // ✅ Static materials
         $materials = [
-            [ 'key' => 'acrylic', 'label' => 'Acrylic' ],
-            [ 'key' => 'alpaca', 'label' => 'Alpaca' ],
-            [ 'key' => 'bamboo', 'label' => 'Bamboo' ],
-            [ 'key' => 'canvas', 'label' => 'Canvas' ],
-            [ 'key' => 'cardboard', 'label' => 'Cardboard' ],
-            [ 'key' => 'cashmere', 'label' => 'Cashmere' ],
-            [ 'key' => 'ceramic', 'label' => 'Ceramic' ],
-            [ 'key' => 'chiffon', 'label' => 'Chiffon' ],
-            [ 'key' => 'corduroy', 'label' => 'Corduroy' ],
-            [ 'key' => 'cotton', 'label' => 'Cotton' ],
-            [ 'key' => 'denim', 'label' => 'Denim' ],
-            [ 'key' => 'down', 'label' => 'Down' ],
-            [ 'key' => 'elastane', 'label' => 'Elastane' ],
-            [ 'key' => 'faux_fur', 'label' => 'Faux Fur' ],
-            [ 'key' => 'faux_leather', 'label' => 'Faux Leather' ],
-            [ 'key' => 'felt', 'label' => 'Felt' ],
-            [ 'key' => 'flannel', 'label' => 'Flannel' ],
-            [ 'key' => 'fleece', 'label' => 'Fleece' ],
-            [ 'key' => 'foam', 'label' => 'Foam' ],
-            [ 'key' => 'glass', 'label' => 'Glass' ],
-            [ 'key' => 'gold', 'label' => 'Gold' ],
-            [ 'key' => 'jute', 'label' => 'Jute' ],
+            ['key' => 'acrylic', 'label' => 'Acrylic'],
+            ['key' => 'alpaca', 'label' => 'Alpaca'],
+            ['key' => 'bamboo', 'label' => 'Bamboo'],
+            ['key' => 'canvas', 'label' => 'Canvas'],
+            ['key' => 'cardboard', 'label' => 'Cardboard'],
+            ['key' => 'cashmere', 'label' => 'Cashmere'],
+            ['key' => 'ceramic', 'label' => 'Ceramic'],
+            ['key' => 'chiffon', 'label' => 'Chiffon'],
+            ['key' => 'corduroy', 'label' => 'Corduroy'],
+            ['key' => 'cotton', 'label' => 'Cotton'],
+            ['key' => 'denim', 'label' => 'Denim'],
+            ['key' => 'down', 'label' => 'Down'],
+            ['key' => 'elastane', 'label' => 'Elastane'],
+            ['key' => 'faux_fur', 'label' => 'Faux Fur'],
+            ['key' => 'faux_leather', 'label' => 'Faux Leather'],
+            ['key' => 'felt', 'label' => 'Felt'],
+            ['key' => 'flannel', 'label' => 'Flannel'],
+            ['key' => 'fleece', 'label' => 'Fleece'],
+            ['key' => 'foam', 'label' => 'Foam'],
+            ['key' => 'glass', 'label' => 'Glass'],
+            ['key' => 'gold', 'label' => 'Gold'],
+            ['key' => 'jute', 'label' => 'Jute'],
         ];
 
         return response()->json([
-            'success'     => true,
-            'categories'  => $categories,
-            'sizes'       => $sizes,
-            'brands'      => $brands,
-            'conditions'  => $conditions,
-            'colors'      => $colors,
-            'materials'   => $materials,
+            'success' => true,
+            'categories' => $categories,
+            'brands' => $brands,
+            'conditions' => $conditions,
+            'colors' => $colors,
+            'materials' => $materials,
         ]);
     }
-
-
-
 }
