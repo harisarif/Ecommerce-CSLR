@@ -61,6 +61,7 @@ class Product extends Model
         'is_rejected',
         'reject_reason',
         'is_affiliate',
+        'shop_id'
     ];
 
     /**
