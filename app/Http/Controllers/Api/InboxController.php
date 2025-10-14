@@ -4,23 +4,137 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Offer;
+use App\Models\OfferMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InboxController extends Controller
 {
     // list all offers where I'm buyer or seller
+    // public function index(Request $request)
+    // {
+    //     $user = $request->user();
+
+    //     $offers = Offer::with(['product', 'buyer', 'seller'])
+    //         ->where(function ($q) use ($user) {
+    //             $q->where('buyer_id', $user->id)
+    //                 ->orWhere('seller_id', $user->id);
+    //         })
+    //         ->orderByDesc('updated_at')
+    //         ->paginate(30);
+
+    //     return response()->json($offers);
+    // }
+
     public function index(Request $request)
     {
         $user = $request->user();
 
-        $offers = Offer::with(['product','buyer','seller'])
-            ->where(function($q) use ($user) {
-                $q->where('buyer_id', $user->id)
-                  ->orWhere('seller_id', $user->id);
+        // Step 1: Get IDs of latest messages per conversation
+        $latestMessages = OfferMessage::select(DB::raw('MAX(id) as id'))
+            ->where(function ($q) use ($user) {
+                $q->where('sender_id', $user->id)
+                    ->orWhere('recipient_id', $user->id);
             })
-            ->orderByDesc('updated_at')
-            ->paginate(30);
+            ->groupBy(
+                DB::raw('LEAST(sender_id, recipient_id)'), // Ensure same pair groups both directions
+                DB::raw('GREATEST(sender_id, recipient_id)'),
+                DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(meta, '$.product_id')), 'no_product')")
+            )
+            ->pluck('id');
 
-        return response()->json($offers);
+        // Step 2: Fetch those latest messages
+        $messages = OfferMessage::with([
+            'sender:id,username,avatar',
+            'recipient:id,username,avatar',
+            'offer.product:id,slug',
+            'offer.product.images'
+        ])
+            ->whereIn('id', $latestMessages)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'data' => $messages
+        ]);
+    }
+
+    /**
+     * ✅ Get full chat messages with a specific user and optional product
+     */
+    public function chatThread(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'recipient_id' => 'required|integer|exists:users,id',
+            'product_id' => 'nullable|integer|exists:products,id',
+            'offer_id' => 'nullable|integer|exists:offers,id',
+        ]);
+
+        $query = OfferMessage::with(['sender:id,username,avatar', 'recipient:id,username,avatar'])
+            ->where(function ($q) use ($user, $data) {
+                $q->where(function ($sub) use ($user, $data) {
+                    $sub->where('sender_id', $user->id)
+                        ->where('recipient_id', $data['recipient_id']);
+                })
+                    ->orWhere(function ($sub) use ($user, $data) {
+                        $sub->where('sender_id', $data['recipient_id'])
+                            ->where('recipient_id', $user->id);
+                    });
+            });
+
+        // 🟢 If offer_id is given → show offer-related messages only
+        if (!empty($data['offer_id'])) {
+            $query->where('offer_id', $data['offer_id']);
+        } else {
+            // 🟡 Otherwise, show only pure chat (no offer)
+            $query->whereNull('offer_id')
+                ->whereRaw("JSON_EXTRACT(meta, '$.type') = 'chat'");
+        }
+
+        // Optional product filter
+        if (!empty($data['product_id'])) {
+            $query->whereRaw("JSON_EXTRACT(meta, '$.product_id') = ?", [$data['product_id']]);
+        }
+
+        $messages = $query->orderBy('created_at')->get();
+
+        return response()->json(['data' => $messages]);
+    }
+
+
+    /**
+     * ✅ Send message (either simple chat or offer chat)
+     */
+    public function sendMessage(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'recipient_id' => 'required|integer|exists:users,id',
+            'body' => 'required|string',
+            'product_id' => 'nullable|integer|exists:products,id',
+            'offer_id' => 'nullable|integer|exists:offers,id',
+        ]);
+
+        $meta = [
+            'type' => !empty($data['offer_id']) ? 'offer_chat' : 'chat',
+            'product_id' => $data['product_id'] ?? null,
+        ];
+
+        $message = OfferMessage::create([
+            'offer_id' => $data['offer_id'] ?? null,
+            'sender_id' => $user->id,
+            'recipient_id' => $data['recipient_id'],
+            'body' => $data['body'],
+            'meta' => $meta,
+            'is_read' => false,
+        ]);
+
+        return response()->json([
+            'message' => 'Message sent successfully',
+            'data' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar')
+        ], 201);
     }
 }

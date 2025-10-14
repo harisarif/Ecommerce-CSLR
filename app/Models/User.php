@@ -105,6 +105,11 @@ class User extends Authenticatable implements JWTSubject
         'password',
         'remember_token',
     ];
+    public function getFullNameAttribute()
+    {
+        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+    }
+
 
     /**
      * The attributes that should be cast.
@@ -150,10 +155,7 @@ class User extends Authenticatable implements JWTSubject
      *
      * @return string
      */
-    public function getFullNameAttribute()
-    {
-        return "{$this->first_name} {$this->last_name}";
-    }
+
 
     /**
      * Get the social media data as an array.

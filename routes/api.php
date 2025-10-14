@@ -113,8 +113,10 @@ Route::prefix('v1')->group(function () {
         });   
 
         // Inbox
-        Route::prefix('inbox')->group(function () {
-           Route::get('/inbox', [InboxController::class, 'index']);
+        Route::prefix('chat')->group(function () {
+            Route::get('/', [InboxController::class, 'index']);
+            Route::post('/send', [InboxController::class, 'sendMessage']);
+            Route::get('/thread', [InboxController::class, 'chatThread']);
         });   
            
     });
