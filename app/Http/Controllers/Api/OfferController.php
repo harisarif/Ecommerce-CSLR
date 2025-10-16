@@ -9,6 +9,10 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Helpers\PusherHelper;
+use App\Helpers\MessageTypeHelper;
+use App\Notifications\OfferNotification;
 
 class OfferController extends Controller
 {
@@ -46,7 +50,7 @@ class OfferController extends Controller
         ]);
 
         // ✅ Create initial offer message
-        OfferMessage::create([
+        $message = OfferMessage::create([
             'offer_id' => $offer->id,
             'sender_id' => $user->id,
             'recipient_id' => $sellerUserId,
@@ -59,6 +63,42 @@ class OfferController extends Controller
             ],
             'is_read' => false,
         ]);
+
+
+
+            // ✅ Prepare notification
+        $recipient = User::find($sellerUserId);
+        $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+
+        if ($recipient) {
+            $recipient->notify(new OfferNotification([
+                'title' => 'New Offer Received',
+                'body' => $notificationText,
+                'sender_id' => $user->id,
+                'recipient_id' => $recipient->id,
+                'offer_id' => $offer->id,
+                'type' => 'offer',
+                'product_id' => $product->id,
+            ]));
+
+            // 🔔 Send via Pusher (notification + chat)
+            PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+                'title' => 'New Offer Received',
+                'body' => $notificationText,
+                'type' => 'offer',
+                'sender' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                ],
+                'offer_id' => $offer->id,
+                'product_id' => $product->id,
+            ]);
+
+            PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+                'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+            ]);
+        }
 
         return response()->json(['message' => 'Offer sent', 'data' => $offer], 201);
     }
@@ -111,11 +151,11 @@ class OfferController extends Controller
         }
 
         // ✅ Log response message
-        OfferMessage::create([
+        $message = OfferMessage::create([
             'offer_id'     => $offer->id,
             'sender_id'    => $user->id,
             'recipient_id' => $offer->buyer_id,
-            'body'         => "{$user->username} {$data['status']} your offer for \"{$offer->product->title}\" at price {$offer->price}",
+            'body'         => "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price}",
             'meta' => [
                 'product_id'     => $offer->product->id,
                 'product_title'  => $offer->product->slug,
@@ -129,6 +169,40 @@ class OfferController extends Controller
         $offer->status = $data['status'];
         $offer->responded_at = Carbon::now();
         $offer->save();
+
+
+
+         // ✅ Send notification & pusher
+        $recipient = User::find($offer->buyer_id);
+        $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+
+        if ($recipient) {
+            $recipient->notify(new OfferNotification([
+                'title' => 'Offer Response',
+                'body' => $notificationText,
+                'sender_id' => $user->id,
+                'recipient_id' => $recipient->id,
+                'offer_id' => $offer->id,
+                'type' => 'offer_response',
+                'status' => $data['status'],
+            ]));
+
+            PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+                'title' => 'Offer Response',
+                'body' => $notificationText,
+                'type' => 'offer_response',
+                'status' => $data['status'],
+                'sender' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                ],
+            ]);
+
+            PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+                'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+            ]);
+        }
 
         return response()->json(['message' => 'Offer updated', 'data' => $offer]);
     }
@@ -154,11 +228,11 @@ class OfferController extends Controller
         $offer->save();
 
         // ✅ Create counter offer message
-        OfferMessage::create([
+        $message = OfferMessage::create([
             'offer_id'     => $offer->id,
             'sender_id'    => $user->id,
             'recipient_id' => $offer->buyer_id,
-            'body'         => "{$user->username} sent a counter offer for product \"{$offer->product->title}\" at price {$data['price']}",
+            'body'         => "{$user->username} sent a counter offer for product \"{$offer->product->slug}\" at price {$data['price']}",
             'meta' => [
                 'product_id'     => $offer->product->id,
                 'product_title'  => $offer->product->slug,
@@ -167,6 +241,39 @@ class OfferController extends Controller
             ],
             'is_read' => false,
         ]);
+
+
+
+           $recipient = User::find($offer->buyer_id);
+        $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+
+        if ($recipient) {
+            $recipient->notify(new OfferNotification([
+                'title' => 'Counter Offer',
+                'body' => $notificationText,
+                'sender_id' => $user->id,
+                'recipient_id' => $recipient->id,
+                'offer_id' => $offer->id,
+                'type' => 'counter_offer',
+                'product_id' => $offer->product->id,
+            ]));
+
+            PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+                'title' => 'Counter Offer',
+                'body' => $notificationText,
+                'type' => 'counter_offer',
+                'sender' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                ],
+                'offer_id' => $offer->id,
+            ]);
+
+            PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+                'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+            ]);
+        }
 
         return response()->json([
             'message' => 'Counter offer sent successfully',

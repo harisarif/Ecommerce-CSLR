@@ -9,6 +9,9 @@ use App\Models\ShopFollower;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use App\Helpers\PusherHelper;
+use App\Notifications\ShopFollowNotification;
+use Illuminate\Support\Facades\Notification;
 
 class ShopController extends Controller
 {
@@ -141,9 +144,29 @@ class ShopController extends Controller
     // ✅ Follow Shop
     public function follow(Request $request, $id)
     {
+        $user = $request->user();
+
         $shop = Shop::findOrFail($id);
 
         $shop->followers()->syncWithoutDetaching([$request->user()->id]);
+        
+        // ✅ Store notification in DB
+        $notification = new ShopFollowNotification($user, $shop, 'follow');
+        $shop->user->notify($notification);
+
+        // ✅ Send realtime push manually via your existing helper
+        $channel = "private-user-{$shop->user->id}";
+        $event = "shop-follow";
+        $payload = [
+            'type' => 'shop_follow',
+            'shop_id' => $shop->id,
+            'shop_name' => $shop->name,
+            'follower_id' => $user->id,
+            'follower_username' => $user->username,
+            'message' => "{$user->username} followed your shop \"{$shop->name}\"",
+        ];
+
+        PusherHelper::trigger($channel, $event, $payload);
 
         return response()->json(['message' => 'Followed shop']);
     }
@@ -154,6 +177,25 @@ class ShopController extends Controller
         $shop = Shop::findOrFail($id);
 
         $shop->followers()->detach($request->user()->id);
+
+        $user = $request->user();
+        // ✅ Store notification in DB
+        $notification = new ShopFollowNotification($user, $shop, 'follow');
+        $shop->user->notify($notification);
+
+        // ✅ Send realtime push manually via your existing helper
+        $channel = "private-user-{$shop->user->id}";
+        $event = "shop-follow";
+        $payload = [
+            'type' => 'shop_follow',
+            'shop_id' => $shop->id,
+            'shop_name' => $shop->name,
+            'follower_id' => $user->id,
+            'follower_username' => $user->username,
+            'message' => "{$user->username} followed your shop \"{$shop->name}\"",
+        ];
+
+        PusherHelper::trigger($channel, $event, $payload);
 
         return response()->json(['message' => 'Unfollowed shop']);
     }

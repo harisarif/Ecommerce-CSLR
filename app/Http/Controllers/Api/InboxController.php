@@ -7,6 +7,10 @@ use App\Models\Offer;
 use App\Models\OfferMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\PusherHelper;
+use App\Helpers\MessageTypeHelper;
+use App\Models\User;
+use App\Notifications\OfferNotification;
 
 class InboxController extends Controller
 {
@@ -131,6 +135,49 @@ class InboxController extends Controller
             'meta' => $meta,
             'is_read' => false,
         ]);
+
+
+        // ✅ Load sender & recipient for clean data
+        $message->load('sender:id,username,avatar', 'recipient:id,username,avatar');
+
+        // ✅ Generate notification text
+        $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+
+        $recipient = User::find($data['recipient_id']);
+
+        // ✅ Save to database (Laravel Notification)
+        if ($recipient) {
+            $recipient->notify(new OfferNotification([
+                'title' => 'New Message',
+                'body' => $notificationText,
+                'sender_id' => $user->id,
+                'recipient_id' => $recipient->id,
+                'message_id' => $message->id,
+                'type' => $meta['type'],
+                'product_id' => $meta['product_id'] ?? null,
+            ]));
+        }
+
+        // ✅ 1️⃣ Pusher event for chat messages
+        $chatChannel = "private-chat-{$recipient->id}";
+        PusherHelper::trigger($chatChannel, 'new-message', [
+            'message' => $message,
+        ]);
+
+        // ✅ 2️⃣ Pusher event for notifications (separate)
+        $notifChannel = "private-notifications-{$recipient->id}";
+        PusherHelper::trigger($notifChannel, 'new-notification', [
+            'title' => 'New Message',
+            'body' => $notificationText,
+            'sender' => [
+                'id' => $user->id,
+                'username' => $user->username,
+                'avatar' => $user->avatar,
+            ],
+            'type' => $meta['type'],
+            'message_id' => $message->id,
+        ]);
+
 
         return response()->json([
             'message' => 'Message sent successfully',
