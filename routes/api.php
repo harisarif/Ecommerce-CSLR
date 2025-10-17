@@ -15,7 +15,7 @@ use App\Http\Controllers\Api\DiscoverController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\InboxController;
-
+use App\Http\Controllers\Api\NotificationController;
 
 Route::prefix('v1')->group(function () {
 
@@ -118,6 +118,19 @@ Route::prefix('v1')->group(function () {
             Route::post('/send', [InboxController::class, 'sendMessage']);
             Route::get('/thread', [InboxController::class, 'chatThread']);
         });   
+
+        //Notifications
+        Route::prefix('notifications')->middleware('auth:api')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::get('/unread', [NotificationController::class, 'unread']);
+
+            Route::post('/read/{id}', [NotificationController::class, 'markAsRead']);
+            Route::post('/read', [NotificationController::class, 'markMultipleAsRead']);
+
+            Route::delete('/{id}', [NotificationController::class, 'destroy']);
+            Route::delete('/', [NotificationController::class, 'destroyMultiple']);
+            Route::delete('/clear/all', [NotificationController::class, 'clearAll']);
+        });
            
     });
     Route::post('/check-username', [UserController::class, 'checkUsername']);

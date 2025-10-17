@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Helpers\PusherHelper;
 use App\Helpers\MessageTypeHelper;
 use App\Notifications\OfferNotification;
+use App\Models\Notification;
 
 class OfferController extends Controller
 {
@@ -71,15 +72,20 @@ class OfferController extends Controller
         $notificationText = MessageTypeHelper::notificationText($message, $user->username);
 
         if ($recipient) {
-            $recipient->notify(new OfferNotification([
-                'title' => 'New Offer Received',
-                'body' => $notificationText,
-                'sender_id' => $user->id,
-                'recipient_id' => $recipient->id,
-                'offer_id' => $offer->id,
-                'type' => 'offer',
-                'product_id' => $product->id,
-            ]));
+                // ✅ Manual notification insert
+                Notification::create([
+                    'type' => 'offer',
+                    'notifiable_type' => get_class($product->shop->user),
+                    'notifiable_id' => $sellerUserId,
+                    'data' => [
+                        'title' => 'New Offer Received',
+                        'body' => $notificationText,
+                        'sender_id' => $user->id,
+                        'recipient_id' => $sellerUserId,
+                        'offer_id' => $offer->id,
+                        'product_id' => $product->id,
+                    ],
+                ]);
 
             // 🔔 Send via Pusher (notification + chat)
             PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
@@ -177,15 +183,20 @@ class OfferController extends Controller
         $notificationText = MessageTypeHelper::notificationText($message, $user->username);
 
         if ($recipient) {
-            $recipient->notify(new OfferNotification([
-                'title' => 'Offer Response',
-                'body' => $notificationText,
-                'sender_id' => $user->id,
-                'recipient_id' => $recipient->id,
-                'offer_id' => $offer->id,
+            // ✅ Manual notification insert
+            Notification::create([
                 'type' => 'offer_response',
-                'status' => $data['status'],
-            ]));
+                'notifiable_type' => get_class($offer->buyer),
+                'notifiable_id' => $offer->buyer_id,
+                'data' => [
+                    'title' => 'Offer Response',
+                    'body' => $notificationText,
+                    'sender_id' => $user->id,
+                    'recipient_id' => $offer->buyer_id,
+                    'offer_id' => $offer->id,
+                    'status' => $data['status'],
+                ],
+            ]);
 
             PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
                 'title' => 'Offer Response',
@@ -244,19 +255,24 @@ class OfferController extends Controller
 
 
 
-           $recipient = User::find($offer->buyer_id);
+        $recipient = User::find($offer->buyer_id);
         $notificationText = MessageTypeHelper::notificationText($message, $user->username);
 
         if ($recipient) {
-            $recipient->notify(new OfferNotification([
-                'title' => 'Counter Offer',
-                'body' => $notificationText,
-                'sender_id' => $user->id,
-                'recipient_id' => $recipient->id,
-                'offer_id' => $offer->id,
+            // ✅ Manual notification insert
+            Notification::create([
                 'type' => 'counter_offer',
-                'product_id' => $offer->product->id,
-            ]));
+                'notifiable_type' => get_class($offer->buyer),
+                'notifiable_id' => $offer->buyer_id,
+                'data' => [
+                    'title' => 'Counter Offer',
+                    'body' => $notificationText,
+                    'sender_id' => $user->id,
+                    'recipient_id' => $offer->buyer_id,
+                    'offer_id' => $offer->id,
+                    'product_id' => $offer->product->id,
+                ],
+            ]);
 
             PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
                 'title' => 'Counter Offer',

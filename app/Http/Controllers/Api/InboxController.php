@@ -11,6 +11,7 @@ use App\Helpers\PusherHelper;
 use App\Helpers\MessageTypeHelper;
 use App\Models\User;
 use App\Notifications\OfferNotification;
+use App\Models\Notification;
 
 class InboxController extends Controller
 {
@@ -122,6 +123,13 @@ class InboxController extends Controller
             'offer_id' => 'nullable|integer|exists:offers,id',
         ]);
 
+
+        if ($data['recipient_id'] == $user->id) {
+            return response()->json([
+                'message' => 'You cannot send a message to yourself.'
+            ], 422);
+        }
+
         $meta = [
             'type' => !empty($data['offer_id']) ? 'offer_chat' : 'chat',
             'product_id' => $data['product_id'] ?? null,
@@ -147,15 +155,21 @@ class InboxController extends Controller
 
         // ✅ Save to database (Laravel Notification)
         if ($recipient) {
-            $recipient->notify(new OfferNotification([
-                'title' => 'New Message',
-                'body' => $notificationText,
-                'sender_id' => $user->id,
-                'recipient_id' => $recipient->id,
-                'message_id' => $message->id,
+            Notification::create([
                 'type' => $meta['type'],
-                'product_id' => $meta['product_id'] ?? null,
-            ]));
+                'notifiable_type' => get_class($recipient),
+                'notifiable_id' => $recipient->id,
+                'data' => [
+                    'title' => 'New Message',
+                    'body' => $notificationText,
+                    'sender_id' => $user->id,
+                    'recipient_id' => $recipient->id,
+                    'message_id' => $message->id,
+                    'product_id' => $meta['product_id'] ?? null,
+                    'type' => $meta['type'],
+                    'created_at' => now()->toDateTimeString(),
+                ],
+            ]);
         }
 
         // ✅ 1️⃣ Pusher event for chat messages

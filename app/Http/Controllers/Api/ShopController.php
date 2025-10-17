@@ -10,8 +10,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Helpers\PusherHelper;
+use App\Models\Notification;
 use App\Notifications\ShopFollowNotification;
-use Illuminate\Support\Facades\Notification;
+// use Illuminate\Support\Facades\Notification;
 
 class ShopController extends Controller
 {
@@ -150,9 +151,21 @@ class ShopController extends Controller
 
         $shop->followers()->syncWithoutDetaching([$request->user()->id]);
         
-        // ✅ Store notification in DB
-        $notification = new ShopFollowNotification($user, $shop, 'follow');
-        $shop->user->notify($notification);
+         // ✅ Create notification record manually
+        Notification::create([
+            'type' => 'shop_follow',
+            'notifiable_type' => get_class($shop->user),
+            'notifiable_id' => $shop->user->id,
+            'data' => [
+                'type' => 'shop_follow',
+                'shop_id' => $shop->id,
+                'shop_name' => $shop->name,
+                'follower_id' => $user->id,
+                'follower_username' => $user->username,
+                'message' => "{$user->username} followed your shop \"{$shop->name}\"",
+            ],
+        ]);
+
 
         // ✅ Send realtime push manually via your existing helper
         $channel = "private-user-{$shop->user->id}";
@@ -179,9 +192,21 @@ class ShopController extends Controller
         $shop->followers()->detach($request->user()->id);
 
         $user = $request->user();
-        // ✅ Store notification in DB
-        $notification = new ShopFollowNotification($user, $shop, 'follow');
-        $shop->user->notify($notification);
+        
+        // ✅ Create notification record manually
+        Notification::create([
+            'type' => 'shop_unfollow',
+            'notifiable_type' => get_class($shop->user),
+            'notifiable_id' => $shop->user->id,
+            'data' => [
+                'type' => 'shop_unfollow',
+                'shop_id' => $shop->id,
+                'shop_name' => $shop->name,
+                'follower_id' => $user->id,
+                'follower_username' => $user->username,
+                'message' => "{$user->username} unfollowed your shop \"{$shop->name}\"",
+            ],
+        ]);
 
         // ✅ Send realtime push manually via your existing helper
         $channel = "private-user-{$shop->user->id}";
