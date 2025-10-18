@@ -110,6 +110,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/sent', [OfferController::class, 'sent']);
             Route::get('/received', [OfferController::class, 'received']);
             Route::put('/{id}', [OfferController::class, 'update']);
+            Route::post('/{id}/counter', [OfferController::class, 'counterOffer']);
         });   
 
         // Inbox
