@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Auth;
 
 class Product extends Model
 {
@@ -92,6 +93,21 @@ class Product extends Model
         'promote_end_date' => 'datetime',
         'special_offer_date' => 'datetime',
     ];
+
+    protected $appends = ['is_favorite'];
+
+    public function getIsFavoriteAttribute()
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return false; // not logged in, so not favorite
+        }
+
+        return \App\Models\Wishlist::where('user_id', $user->id)
+            ->where('product_id', $this->id)
+            ->exists();
+    }
 
     /**
      * Get the user that owns the product.
