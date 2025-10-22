@@ -300,30 +300,51 @@ class ProductController extends Controller
                 ]);
             }
 
-            // 📸 Handle image uploads
+            // 📸 Handle image uploads (only first 3)
             if ($request->hasFile('images')) {
-                foreach ($request->file('images') as $image) {
-                    $folderPath = 'uploads/202410';
-                    $destinationPath = public_path($folderPath);
+                $images = $request->file('images');
+                $folderPath = 'uploads/202410';
+                $destinationPath = public_path($folderPath);
 
-                    // Ensure directory exists
-                    if (!file_exists($destinationPath)) {
-                        mkdir($destinationPath, 0755, true);
-                    }
+                // Ensure directory exists
+                if (!file_exists($destinationPath)) {
+                    mkdir($destinationPath, 0755, true);
+                }
 
-                    // Create unique filename
+                // Take only first 3 images
+                $limitedImages = array_slice($images, 0, 3);
+
+                // Prepare filenames
+                $imageDefault = null;
+                $imageBig = null;
+                $imageSmall = null;
+
+                foreach ($limitedImages as $index => $image) {
                     $filename = uniqid() . '.' . $image->getClientOriginalExtension();
-
-                    // Move file to public/uploads/202410
                     $image->move($destinationPath, $filename);
 
-                    // Save relative path in DB
-                    \App\Models\Image::create([
-                        'product_id' => $product->id,
-                        'image' => $folderPath . '/' . $filename,
-                    ]);
+                    $relativePath = '202410/' . $filename;
+
+                    if ($index === 0) {
+                        $imageDefault = $relativePath;
+                    } elseif ($index === 1) {
+                        $imageBig = $relativePath;
+                    } elseif ($index === 2) {
+                        $imageSmall = $relativePath;
+                    }
                 }
+
+                // Save only one record with the 3 images
+                \App\Models\Image::create([
+                    'product_id' => $product->id,
+                    'image_default' => $imageDefault,
+                    'image_big' => $imageBig,
+                    'image_small' => $imageSmall,
+                    'is_main' => true,
+                    'storage' => 'local',
+                ]);
             }
+
 
             DB::commit();
 
