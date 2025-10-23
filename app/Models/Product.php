@@ -109,6 +109,11 @@ class Product extends Model
             ->exists();
     }
 
+
+    public function gallery()
+    {
+        return $this->hasOne(ProductImage::class);
+    }
     /**
      * Get the user that owns the product.
      */

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 class WishListController extends Controller
 {
     public function getWhishlistProductsByUser(){
-        $product = Wishlist::with(['product.details', 'product.licenseKeys', 'product.searchIndexes', 'product.appCategory', 'product.user', 'product.images', 'product.variations', 'product.defaultVariationOptions', 'product.mainImage'])
+        $product = Wishlist::with(['product.details', 'product.licenseKeys', 'product.searchIndexes', 'product.appCategory', 'product.user', 'product.images', 'product.variations', 'product.defaultVariationOptions', 'product.mainImage','product.gallery'])
         ->where('user_id', Auth::user()->id)
         ->paginate(10);
         return response()->json($product);

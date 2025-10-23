@@ -93,13 +93,13 @@ class DiscoverController extends Controller
     {
         $query = Product::with([
             'brand:id,name',
-            'images',
             'variations',
             'defaultVariationOptions',
-            'mainImage',
             'appCategory:id,slug',
             'productSizes.size',
             'attributes',
+            'mainImage',
+            'gallery'
         ]);
 
         // Category filter

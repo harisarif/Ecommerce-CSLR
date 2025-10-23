@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use App\Models\Wishlist;
@@ -22,7 +23,7 @@ class ProductController extends Controller
         if ($productId) {
             $product = Product::with([
                 'details', 'licenseKeys', 'searchIndexes','appCategory',
-                'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
+                'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'
             ])->find($productId);
 
             if (!$product) {
@@ -41,7 +42,7 @@ class ProductController extends Controller
         // Otherwise return paginated list
         $products = Product::with([
             'details', 'licenseKeys', 'searchIndexes', 'appCategory',
-            'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
+            'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'
         ])->paginate(10);
 
         return response()->json([
@@ -53,7 +54,7 @@ class ProductController extends Controller
 
     public function getSpecialOfferProducts()
     {
-        $product = Product::with(['details', 'licenseKeys', 'searchIndexes','appCategory','user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'])
+        $product = Product::with(['details', 'licenseKeys', 'searchIndexes','appCategory','user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'])
         ->specialOffers()
         ->orderBy('special_offer_date', 'DESC')
         ->paginate(10);
@@ -62,7 +63,7 @@ class ProductController extends Controller
 
     public function getPromotedProducts()
     {
-        $product = Product::with(['details', 'licenseKeys', 'searchIndexes', 'appCategory', 'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'])
+        $product = Product::with(['details', 'licenseKeys', 'searchIndexes', 'appCategory', 'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'])
         ->promoted()
         ->paginate(10);
         return response()->json($product);
@@ -75,8 +76,8 @@ class ProductController extends Controller
         $query = Product::with([
             'details', 'licenseKeys', 'searchIndexes',
             'appCategory',
-            'user', 'images', 'variations',
-            'defaultVariationOptions', 'mainImage', 'sizes'
+            'user',  'variations',
+            'defaultVariationOptions', 'sizes','images' ,'mainImage','gallery'
         ]);
 
         if ($isApp) {
@@ -106,7 +107,7 @@ class ProductController extends Controller
             })
             ->with([
                 'details', 'licenseKeys', 'searchIndexes', 'appCategory',
-                'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
+                'user',  'variations', 'defaultVariationOptions','images', 'mainImage','gallery'
             ])
             ->limit(20)
             ->get();
@@ -300,49 +301,42 @@ class ProductController extends Controller
                 ]);
             }
 
-            // 📸 Handle image uploads (only first 3)
             if ($request->hasFile('images')) {
                 $images = $request->file('images');
-                $folderPath = 'uploads/202410';
+                $folderPath = 'uploads/' . date('Ym');
                 $destinationPath = public_path($folderPath);
 
-                // Ensure directory exists
                 if (!file_exists($destinationPath)) {
                     mkdir($destinationPath, 0755, true);
                 }
 
-                // Take only first 3 images
-                $limitedImages = array_slice($images, 0, 3);
+                $imagePaths = [];
 
-                // Prepare filenames
-                $imageDefault = null;
-                $imageBig = null;
-                $imageSmall = null;
-
-                foreach ($limitedImages as $index => $image) {
+                foreach ($images as $index => $image) {
                     $filename = uniqid() . '.' . $image->getClientOriginalExtension();
                     $image->move($destinationPath, $filename);
-
-                    $relativePath = '202410/' . $filename;
+                    $relativePath = date('Ym') . '/' . $filename;
 
                     if ($index === 0) {
-                        $imageDefault = $relativePath;
-                    } elseif ($index === 1) {
-                        $imageBig = $relativePath;
-                    } elseif ($index === 2) {
-                        $imageSmall = $relativePath;
+                    // 🖼 Save the first image as the main product image
+                        \App\Models\Image::create([
+                            'product_id' => $product->id,
+                            'image_default' => $relativePath,
+                            'is_main' => true,
+                            'storage' => 'local',
+                        ]);
+                    } else {
+                        $imagePaths[] = $relativePath;
                     }
                 }
 
-                // Save only one record with the 3 images
-                \App\Models\Image::create([
-                    'product_id' => $product->id,
-                    'image_default' => $imageDefault,
-                    'image_big' => $imageBig,
-                    'image_small' => $imageSmall,
-                    'is_main' => true,
-                    'storage' => 'local',
-                ]);
+                if (!empty($imagePaths)) {
+                    ProductImage::create([
+                        'product_id' => $product->id,
+                        'image_paths' => $imagePaths,
+                        'count' => count($imagePaths),
+                    ]);
+                }
             }
 
 
@@ -351,7 +345,7 @@ class ProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
-                'data' => $product->load(['sizes.size', 'attributes', 'images'])
+                'data' => $product->load(['sizes.size', 'attributes', 'mainImage' ,'gallery'])
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -427,12 +421,13 @@ class ProductController extends Controller
         $productsQuery = Product::query()
             ->with([
                 'brand:id,name',
-                'images',
                 'variations',
                 'defaultVariationOptions',
-                'mainImage',
                 'appCategory:id,slug',
-                'productSizes.size'
+                'productSizes.size',
+                'images',
+                'mainImage',
+                'gallery'
             ])
             ->where('status', 1) // only active
             ->where('stock', '>', 0); // only in-stock
@@ -480,12 +475,13 @@ class ProductController extends Controller
             'searchIndexes',
             'appCategory',
             'user',
-            'images',
             'variations',
             'defaultVariationOptions',
-            'mainImage',
             'sizes',
-            'shop'
+            'shop',
+            'images',
+            'mainImage',
+            'gallery'
         ])->find($id);
 
         if (!$product) {
@@ -498,6 +494,7 @@ class ProductController extends Controller
         // ✅ Fetch related products
         $relatedProducts = Product::with([
             'mainImage',
+            'gallery',
             'shop'
         ])
         ->where('id', '!=', $product->id)
