@@ -173,47 +173,39 @@ class UserController extends Controller
     public function updateUserProfile(Request $request)
     {
         $user = JWTAuth::parseToken()->authenticate();
-        // $user->load('shop');
 
-        $request->validate([
-            'first_name'      => 'required|string|max:255',
-            'last_name'       => 'required|string|max:255',
-            'email'           => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'dob'             => 'required|date',
-            'username'        => 'required|string|max:255|unique:users,username,' . $user->id,
-            'billing_address' => 'required|string',
-            // 'shop_name'       => 'nullable|string|max:255',
-            // 'shop_description'=> 'nullable|string',
-            // 'shop_phone'      => 'nullable|string|max:20',
-            // 'shop_address'    => 'nullable|string',
-            'sizes'           => 'array',
-            'sizes.*.category_id' => 'required_with:sizes|exists:categories,id',
-            'sizes.*.size_id'     => 'required_with:sizes|exists:sizes,id',
-            'brands'          => 'array',
-            'brands.*'        => 'required|exists:brands,id',
+        // ✅ Conditional validation
+        $validated = $request->validate([
+            'first_name'      => 'sometimes|required|string|max:255',
+            'last_name'       => 'sometimes|required|string|max:255',
+            'email'           => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
+            'dob'             => 'sometimes|required|date',
+            'username'        => 'sometimes|required|string|max:255|unique:users,username,' . $user->id,
+            'billing_address' => 'sometimes|required|string',
+
+            'sizes'                    => 'sometimes|array',
+            'sizes.*.category_id'      => 'required_with:sizes|exists:categories,id',
+            'sizes.*.size_id'          => 'required_with:sizes|exists:sizes,id',
+
+            'brands'                   => 'sometimes|array',
+            'brands.*'                 => 'required|exists:brands,id',
         ]);
 
-        // ✅ Update user info
-        $user->update([
-            'first_name'      => $request->first_name,
-            'last_name'       => $request->last_name,
-            'email'           => $request->email,
-            'dob'             => $request->dob,
-            'username'        => $request->username,
-            'billing_address' => $request->billing_address,
-        ]);
+        // ✅ Update only provided fields
+        $updateData = collect($request->only([
+            'first_name',
+            'last_name',
+            'email',
+            'dob',
+            'username',
+            'billing_address',
+        ]))->filter()->toArray();
 
-        // // ✅ Update shop info
-        // if ($user->shop) {
-        //     $user->shop->update([
-        //         'name'        => $request->shop_name ?? $user->shop->name,
-        //         'description' => $request->shop_description ?? $user->shop->description,
-        //         'phone'       => $request->shop_phone ?? $user->shop->phone,
-        //         'address'     => $request->shop_address ?? $user->shop->address,
-        //     ]);
-        // }
+        if (!empty($updateData)) {
+            $user->update($updateData);
+        }
 
-        // ✅ Update sizes
+        // ✅ Update sizes if sent
         if ($request->has('sizes')) {
             UserSize::where('user_id', $user->id)->delete();
             foreach ($request->sizes as $sizeData) {
@@ -225,7 +217,7 @@ class UserController extends Controller
             }
         }
 
-        // ✅ Update brands
+        // ✅ Update brands if sent
         if ($request->has('brands')) {
             UserBrand::where('user_id', $user->id)->delete();
             foreach ($request->brands as $brandId) {
@@ -236,13 +228,14 @@ class UserController extends Controller
             }
         }
 
-        $user->load('sizes', 'brands');
+        $user->load(['sizes.appCategory', 'sizes.size', 'brands.brand']);
 
         return response()->json([
             'success' => true,
             'message' => 'Profile updated successfully',
-            'data' => $user
+            'data'    => $user
         ]);
     }
+
 
 }
