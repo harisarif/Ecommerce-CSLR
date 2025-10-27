@@ -22,3 +22,20 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# ✅ Don't commit any uploaded images or media
+/public/uploads/
+/public/images/
+/public/cars/
+/public/photos/
+/public/media/
+/public/temp/
+/public/avatars/
+/storage/app/public/
+/storage/app/uploads/
+/storage/app/images/
+/storage/app/temp/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/views/
+/storage/logs/
