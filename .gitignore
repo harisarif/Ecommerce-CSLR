@@ -26,7 +26,6 @@ Thumbs.db
 # ✅ Don't commit any uploaded images or media
 /public/uploads/
 /public/images/
-/public/cars/
 /public/photos/
 /public/media/
 /public/temp/
