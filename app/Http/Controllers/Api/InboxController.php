@@ -53,7 +53,8 @@ class InboxController extends Controller
             'sender:id,username,avatar',
             'recipient:id,username,avatar',
             'offer.product:id,slug',
-            'offer.product.images'
+            'offer.product.images',
+             'offer.product.gallery'
         ])
             ->whereIn('id', $latestMessages)
             ->orderByDesc('created_at')

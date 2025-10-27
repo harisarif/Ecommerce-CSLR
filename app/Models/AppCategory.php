@@ -31,6 +31,22 @@ class AppCategory extends Model
         'show_description',
     ];
 
+
+        protected $hidden = [
+        'category_order',
+        'featured_order',
+        'homepage_order',
+        'visibility',
+        'is_featured',
+        'show_on_main_menu',
+        'show_image_on_main_menu',
+        'show_products_on_index',
+        'show_subcategory_products',
+        'storage',
+        'image',
+        'show_description',
+    ];
+
     // Parent
     public function parent()
     {

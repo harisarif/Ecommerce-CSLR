@@ -213,7 +213,7 @@ class ProductController extends Controller
             DB::beginTransaction();
 
             // auto generate slug if not provided
-            $slug = $validated['slug'] ?? Str::slug(Str::random(8));
+            $slug = $validated['slug'] ?? Str::slug($validated['title']);
 
             // auto SKU if missing
             $sku = $validated['sku'] ?? strtoupper(Str::random(10));
@@ -421,8 +421,6 @@ class ProductController extends Controller
         $productsQuery = Product::query()
             ->with([
                 'brand:id,name',
-                'variations',
-                'defaultVariationOptions',
                 'appCategory:id,slug',
                 'productSizes.size',
                 'images',
@@ -471,12 +469,8 @@ class ProductController extends Controller
     {
         $product = Product::with([
             'details',
-            'licenseKeys',
-            'searchIndexes',
             'appCategory',
             'user',
-            'variations',
-            'defaultVariationOptions',
             'sizes',
             'shop',
             'images',

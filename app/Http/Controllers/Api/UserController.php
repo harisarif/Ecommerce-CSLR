@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserBrand;
+use App\Models\UserSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 
 class UserController extends Controller
@@ -108,4 +111,138 @@ class UserController extends Controller
             'suggestions'  => $suggestions
         ]);
     }
+
+
+
+    public function getUserProfile(Request $request)
+    {
+        $user = JWTAuth::parseToken()->authenticate();
+
+        // Eager load all relations
+        $user->load([
+            // 'shop',
+            'sizes.appCategory',
+            'sizes.size',
+            'brands.brand'
+        ]);
+
+        // 🧠 Transform sizes data
+        $sizes = $user->sizes->map(function ($item) {
+            return [
+                'category_id' => $item->app_category_id,
+                'category_name' => $item->appCategory->title_meta_tag ?? null,
+                'size_id' => $item->size_id,
+                'size_name' => $item->size->name ?? null,
+            ];
+        });
+
+        // 🧠 Transform brands data
+        $brands = $user->brands->map(function ($item) {
+            return [
+                'brand_id' => $item->brand_id,
+                'brand_name' => $item->brand->name ?? null,
+                'brand_image' => $item->brand->image_path ? url($item->brand->image_path) : null,
+            ];
+        });
+
+        // 🧠 Build final clean response
+        $profileData = [
+            'id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'full_name' => $user->full_name,
+            'dob' => $user->dob,
+            'billing_address' => $user->billing_address,
+            // 'shop' => $user->shop ? [
+            //     'id' => $user->shop->id,
+            //     'name' => $user->shop->name,
+            //     'slug' => $user->shop->slug,
+            //     'description' => $user->shop->description,
+            // ] : null,
+            'sizes' => $sizes,
+            'brands' => $brands,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $profileData,
+        ]);
+    }
+
+
+    public function updateUserProfile(Request $request)
+    {
+        $user = JWTAuth::parseToken()->authenticate();
+        // $user->load('shop');
+
+        $request->validate([
+            'first_name'      => 'required|string|max:255',
+            'last_name'       => 'required|string|max:255',
+            'email'           => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'dob'             => 'required|date',
+            'username'        => 'required|string|max:255|unique:users,username,' . $user->id,
+            'billing_address' => 'required|string',
+            // 'shop_name'       => 'nullable|string|max:255',
+            // 'shop_description'=> 'nullable|string',
+            // 'shop_phone'      => 'nullable|string|max:20',
+            // 'shop_address'    => 'nullable|string',
+            'sizes'           => 'array',
+            'sizes.*.category_id' => 'required_with:sizes|exists:categories,id',
+            'sizes.*.size_id'     => 'required_with:sizes|exists:sizes,id',
+            'brands'          => 'array',
+            'brands.*'        => 'required|exists:brands,id',
+        ]);
+
+        // ✅ Update user info
+        $user->update([
+            'first_name'      => $request->first_name,
+            'last_name'       => $request->last_name,
+            'email'           => $request->email,
+            'dob'             => $request->dob,
+            'username'        => $request->username,
+            'billing_address' => $request->billing_address,
+        ]);
+
+        // // ✅ Update shop info
+        // if ($user->shop) {
+        //     $user->shop->update([
+        //         'name'        => $request->shop_name ?? $user->shop->name,
+        //         'description' => $request->shop_description ?? $user->shop->description,
+        //         'phone'       => $request->shop_phone ?? $user->shop->phone,
+        //         'address'     => $request->shop_address ?? $user->shop->address,
+        //     ]);
+        // }
+
+        // ✅ Update sizes
+        if ($request->has('sizes')) {
+            UserSize::where('user_id', $user->id)->delete();
+            foreach ($request->sizes as $sizeData) {
+                UserSize::create([
+                    'user_id'         => $user->id,
+                    'app_category_id' => $sizeData['category_id'],
+                    'size_id'         => $sizeData['size_id'],
+                ]);
+            }
+        }
+
+        // ✅ Update brands
+        if ($request->has('brands')) {
+            UserBrand::where('user_id', $user->id)->delete();
+            foreach ($request->brands as $brandId) {
+                UserBrand::create([
+                    'user_id'  => $user->id,
+                    'brand_id' => $brandId,
+                ]);
+            }
+        }
+
+        $user->load('sizes', 'brands');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully',
+            'data' => $user
+        ]);
+    }
+
 }

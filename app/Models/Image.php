@@ -32,6 +32,15 @@ class Image extends Model
         'is_main' => 'boolean',
     ];
 
+    // 👇 Only include this field in API responses
+    protected $hidden = [
+        'product_id',
+        'image_big',
+        'image_small',
+        'is_main',
+        'storage'
+    ];
+
     /**
      * Get the product that owns the image.
      */

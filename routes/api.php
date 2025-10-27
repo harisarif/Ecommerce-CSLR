@@ -61,6 +61,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/update-profile', [UserController::class, 'updateProfile']);
             Route::post('/change-password', [UserController::class, 'changePassword']);
             Route::get('/check-token', [AuthController::class, 'checkToken']);
+            Route::get('/profile', [UserController::class, 'getUserProfile']);
+            Route::post('/profile/update', [UserController::class, 'updateUserProfile']);
         });
 
         

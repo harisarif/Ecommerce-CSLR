@@ -94,6 +94,42 @@ class Product extends Model
         'special_offer_date' => 'datetime',
     ];
 
+    protected $hidden = [
+        'product_type',
+        'listing_type',
+        'vat_rate',
+        'is_sold',
+        'is_deleted',
+        'is_draft',
+        'is_edited',
+        'is_active',
+        'is_free_product',
+        'is_rejected',
+        'reject_reason',
+        'is_affiliate',
+        'shipping_class_id',
+        'shipping_delivery_time_id',
+        'multiple_sale',
+        'digital_file_download_link',
+        'pageviews',
+        'demo_url',
+        'external_link',
+        'files_included',
+        'is_promoted',
+        'promote_start_date',
+        'promote_end_date',
+        'promote_plan',
+        'promote_day',
+        'is_special_offer',
+        'special_offer_date',
+        'visibility',
+        'country_id',
+        'state_id',
+        'city_id',
+        'address',
+        'zip_code',
+    ];
+
     protected $appends = ['is_favorite'];
 
     public function getIsFavoriteAttribute()

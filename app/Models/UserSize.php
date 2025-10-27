@@ -19,4 +19,16 @@ class UserSize extends Model
     {
         return $this->belongsTo(User::class);
     }
+    public function appCategory()
+    {
+        return $this->belongsTo(AppCategory::class, 'app_category_id');
+    }
+
+        /**
+     * 🧩 Relation to Size
+     */
+    public function size()
+    {
+        return $this->belongsTo(Size::class, 'size_id');
+    }
 }
