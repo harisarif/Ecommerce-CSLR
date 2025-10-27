@@ -15,7 +15,8 @@ class ProductImage extends Model
         'image_paths' => 'array',
     ];
 
-    protected $hidden = ['created_at', 'updated_at'];
+    protected $hidden = ['created_at', 'updated_at','product_id','id'];
+    
 
     public function product()
     {

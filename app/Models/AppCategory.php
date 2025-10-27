@@ -32,7 +32,7 @@ class AppCategory extends Model
     ];
 
 
-        protected $hidden = [
+    protected $hidden = [
         'category_order',
         'featured_order',
         'homepage_order',
