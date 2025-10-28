@@ -196,6 +196,11 @@ class ProductController extends Controller
             'attributes' => 'array',
             'attributes.*.type' => 'required|string|max:50',
             'attributes.*.value' => 'required|string|max:100',
+            
+            // 🧩 Parcel Sizes ✅
+            'parcelSize' => 'array',
+            'parcelSize.*.key' => 'required|string|max:100',
+            'parcelSize.*.name' => 'required|string|max:255',
 
             // 📸 Multiple images
             'images' => 'array',
@@ -299,6 +304,16 @@ class ProductController extends Controller
                     'type' => 'condition',
                     'value' => $validated['condition'],
                 ]);
+            }
+            // 🧩 Handle parcel sizes (save into product_attributes)
+            if (!empty($validated['parcelSize'])) {
+                foreach ($validated['parcelSize'] as $parcel) {
+                    \App\Models\ProductAttribute::create([
+                        'product_id' => $product->id,
+                        'type' => 'parcel_size_' . $parcel['key'], // e.g. parcel_size_small_parcel
+                        'value' => $parcel['name'],
+                    ]);
+                }
             }
 
             if ($request->hasFile('images')) {
