@@ -72,6 +72,8 @@ class User extends Authenticatable implements JWTSubject
         'commission_debt',
         'account_delete_req',
         'account_delete_req_date',
+        'dob',
+        'billing_address'
     ];
 
 
