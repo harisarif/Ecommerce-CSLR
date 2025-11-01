@@ -98,8 +98,6 @@ class DiscoverController extends Controller
             'appCategory:id,slug',
             'productSizes.size',
             'attributes',
-            'mainImage',
-            'gallery'
         ]);
 
         // Category filter

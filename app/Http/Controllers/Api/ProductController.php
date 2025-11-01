@@ -22,9 +22,8 @@ class ProductController extends Controller
 
         if ($productId) {
             $product = Product::with([
-                'details', 'licenseKeys', 'searchIndexes','appCategory',
-                'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'
-            ])->find($productId);
+                'details','appCategory',
+                'user','variations', 'defaultVariationOptions'])->find($productId);
 
             if (!$product) {
                 return response()->json([
@@ -41,9 +40,8 @@ class ProductController extends Controller
 
         // Otherwise return paginated list
         $products = Product::with([
-            'details', 'licenseKeys', 'searchIndexes', 'appCategory',
-            'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'
-        ])->paginate(10);
+            'details','appCategory',
+            'user', 'variations', 'defaultVariationOptions'])->paginate(10);
 
         return response()->json([
             'success' => true,
@@ -54,7 +52,7 @@ class ProductController extends Controller
 
     public function getSpecialOfferProducts()
     {
-        $product = Product::with(['details', 'licenseKeys', 'searchIndexes','appCategory','user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'])
+        $product = Product::with(['details', 'appCategory','user', 'variations', 'defaultVariationOptions'])
         ->specialOffers()
         ->orderBy('special_offer_date', 'DESC')
         ->paginate(10);
@@ -63,7 +61,7 @@ class ProductController extends Controller
 
     public function getPromotedProducts()
     {
-        $product = Product::with(['details', 'licenseKeys', 'searchIndexes', 'appCategory', 'user', 'images', 'variations', 'defaultVariationOptions', 'mainImage','gallery'])
+        $product = Product::with(['details', 'appCategory', 'user','variations', 'defaultVariationOptions'])
         ->promoted()
         ->paginate(10);
         return response()->json($product);
@@ -74,11 +72,10 @@ class ProductController extends Controller
         $isApp = $request->query('app', false); // /products/category/1?app=1
 
         $query = Product::with([
-            'details', 'licenseKeys', 'searchIndexes',
+            'details',
             'appCategory',
             'user',  'variations',
-            'defaultVariationOptions', 'sizes','images' ,'mainImage','gallery'
-        ]);
+            'defaultVariationOptions', 'sizes']);
 
         if ($isApp) {
             $query->where('app_category_id', $category_id);
@@ -106,8 +103,8 @@ class ProductController extends Controller
                 $query->where('title', 'LIKE', "%{$keyword}%");
             })
             ->with([
-                'details', 'licenseKeys', 'searchIndexes', 'appCategory',
-                'user',  'variations', 'defaultVariationOptions','images', 'mainImage','gallery'
+                'details', 'appCategory',
+                'user',  'variations', 'defaultVariationOptions'
             ])
             ->limit(20)
             ->get();
@@ -360,7 +357,7 @@ class ProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
-                'data' => $product->load(['sizes.size', 'attributes', 'mainImage' ,'gallery'])
+                'data' => $product->load(['sizes.size', 'attributes'])
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -391,7 +388,7 @@ class ProductController extends Controller
     //         ->with([
     //             'brand:id,name',
     //             'appCategory:id,slug',   // updated: relation to app_categories
-    //             'productSizes.size', 'images', 'variations', 'defaultVariationOptions', 'mainImage'
+    //             'productSizes.size', 'images', 'variations', 'defaultVariationOptions'
     //         ]);
 
     //     // Filter by brands if any
@@ -438,9 +435,6 @@ class ProductController extends Controller
                 'brand:id,name',
                 'appCategory:id,slug',
                 'productSizes.size',
-                'images',
-                'mainImage',
-                'gallery'
             ])
             ->where('status', 1) // only active
             ->where('stock', '>', 0); // only in-stock
@@ -483,14 +477,12 @@ class ProductController extends Controller
     public function getProductWithShop($id)
     {
         $product = Product::with([
+            'attributes',
             'details',
             'appCategory',
             'user',
             'sizes',
-            'shop',
-            'images',
-            'mainImage',
-            'gallery'
+            'shop'
         ])->find($id);
 
         if (!$product) {
@@ -501,11 +493,7 @@ class ProductController extends Controller
         }
 
         // ✅ Fetch related products
-        $relatedProducts = Product::with([
-            'mainImage',
-            'gallery',
-            'shop'
-        ])
+        $relatedProducts = Product::with(['attributes','shop'])
         ->where('id', '!=', $product->id)
         ->where(function ($q) use ($product) {
             if ($product->category_id) {

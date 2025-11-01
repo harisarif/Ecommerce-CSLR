@@ -90,7 +90,7 @@ class Wishlist extends Model
     public static function getUserWishlist($userId)
     {
         return static::with(['product' => function($query) {
-            $query->with(['mainImage', 'details']);
+            $query->with(['details']);
         }])
         ->where('user_id', $userId)
         ->get()

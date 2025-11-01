@@ -47,8 +47,7 @@ class CartController extends Controller
         ]);
 
         // get product info from DB
-        $product = \App\Models\Product::with('mainImage')
-                    ->where('id', $request->product_id)
+        $product = \App\Models\Product::where('id', $request->product_id)
                     ->active()
                     ->firstOrFail();
 
@@ -59,7 +58,7 @@ class CartController extends Controller
             'variation_option_id' => $request->variation_option_id,
             'product_name' => $product->slug, // or $product->details->title if you prefer
             'product_price' => $product->price_discounted > 0 ? $product->price_discounted : $product->price,
-            'product_image' => $product->mainImage?->url ?? null,
+            'product_image' => $product->main_image?->url ?? null,
             'quantity' => $request->quantity,
         ]);
 

@@ -128,9 +128,10 @@ class Product extends Model
         'city_id',
         'address',
         'zip_code',
+        'mainImageRelation'
     ];
 
-    protected $appends = ['is_favorite'];
+    protected $appends = ['is_favorite', 'main_image', 'product_images'];
 
     public function getIsFavoriteAttribute()
     {
@@ -146,9 +147,36 @@ class Product extends Model
     }
 
 
-    public function gallery()
+    public function productImagesRelation()
     {
-        return $this->hasOne(ProductImage::class);
+        return $this->hasOne(ProductImage::class, 'product_id');
+    }
+
+    // Accessor to return all image paths (including main_image)
+    public function getProductImagesAttribute()
+    {
+        $paths = [];
+
+        // 1️⃣ Add main_image (from images table) if exists
+        $mainImage = $this->main_image;
+        if ($mainImage) {
+            $paths[] = $mainImage;
+        }
+
+        // 2️⃣ Add gallery images (from product_images table)
+        $gallery = $this->relationLoaded('productImagesRelation')
+            ? $this->productImagesRelation
+            : $this->productImagesRelation()->first();
+
+        if ($gallery && !empty($gallery->image_paths)) {
+            foreach ($gallery->image_paths as $path) {
+                if (!in_array($path, $paths)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        return $paths;
     }
     /**
      * Get the user that owns the product.
@@ -280,11 +308,20 @@ class Product extends Model
     /**
      * Get the main image for the product.
      */
-    public function mainImage()
+    public function mainImageRelation()
     {
         return $this->hasOne(Image::class)->where('is_main', true);
     }
 
+    public function getMainImageAttribute()
+    {
+        // If the relation is already loaded (via with()), use it directly
+        $mainImage = $this->relationLoaded('mainImageRelation')
+            ? $this->mainImageRelation
+            : $this->mainImageRelation()->first();
+
+        return $mainImage ? $mainImage->image_default : url('uploads/default.png');
+    }
     /**
      * Get the default variation options for the product.
      */
@@ -376,5 +413,4 @@ class Product extends Model
     {
         return $this->shop ? $this->shop->user() : $this->user();
     }
-
 }

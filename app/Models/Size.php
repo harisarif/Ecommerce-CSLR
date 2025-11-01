@@ -11,6 +11,11 @@ class Size extends Model
         'type',
     ];
 
+    protected $hidden = [
+        'created_at',
+        'updated_at'
+    ];
+
     public function products()
     {
         return $this->belongsToMany(Product::class, 'product_sizes')
