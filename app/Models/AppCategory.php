@@ -69,6 +69,5 @@ class AppCategory extends Model
     public function products()
     {
         return $this->hasMany(Product::class, 'app_category_id');
-        // ⚡ new field in products table
     }
 }

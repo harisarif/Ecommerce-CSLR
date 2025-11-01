@@ -9,6 +9,7 @@ use App\Models\Brand;
 use App\Models\ProductCondition;
 use App\Models\ProductMaterial;
 use App\Models\ProductParcelSize;
+use App\Models\Size;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
@@ -79,66 +80,136 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function getCategoriesWithSizes(Request $request)
-    {
-        $type = strtolower($request->get('type', ''));
 
-        // fetch all parents (tabs)
-        $parents = AppCategory::where('parent_id', 0)->get(['id', 'slug']);
+    //Old code where we only fetch product sizes with categories 
+    // public function getCategoriesWithSizes(Request $request)
+    // {
+    //     $type = strtolower($request->get('type', ''));
 
-        if ($parents->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No parent categories found',
-            ], 404);
-        }
+    //     // fetch all parents (tabs)
+    //     $parents = AppCategory::where('parent_id', 0)->get(['id', 'slug']);
 
-        // if type provided → filter only that parent, else take all parents
-        $targetParents = $type
-            ? $parents->where('slug', $type)
-            : $parents;
+    //     if ($parents->isEmpty()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No parent categories found',
+    //         ], 404);
+    //     }
 
-        $data = $targetParents->map(function ($parent) {
-            $category = AppCategory::with([
-                'children.children.products.productSizes.size'
-            ])->where('id', $parent->id)
-                ->first(['id', 'slug', 'parent_id']);
+    //     // if type provided → filter only that parent, else take all parents
+    //     $targetParents = $type
+    //         ? $parents->where('slug', $type)
+    //         : $parents;
 
-            if ($category) {
-                $category->children->transform(function ($child) {
-                    $sizes = collect();
+    //     $data = $targetParents->map(function ($parent) {
+    //         $category = AppCategory::with([
+    //             'children.children.products.productSizes.size'
+    //         ])->where('id', $parent->id)
+    //             ->first(['id', 'slug', 'parent_id']);
 
-                    // sizes from products directly under child
-                    $sizes = $sizes->merge(
-                        $child->products->flatMap(fn($p) => $p->productSizes->pluck('size'))
-                    );
+    //         if ($category) {
+    //             $category->children->transform(function ($child) {
+    //                 $sizes = collect();
 
-                    // sizes from grandchild categories
-                    foreach ($child->children as $grandchild) {
-                        $sizes = $sizes->merge(
-                            $grandchild->products->flatMap(fn($p) => $p->productSizes->pluck('size'))
-                        );
-                    }
+    //                 // sizes from products directly under child
+    //                 $sizes = $sizes->merge(
+    //                     $child->products->flatMap(fn($p) => $p->productSizes->pluck('size'))
+    //                 );
 
-                    $child->sizes = $sizes->unique('id')->values();
+    //                 // sizes from grandchild categories
+    //                 foreach ($child->children as $grandchild) {
+    //                     $sizes = $sizes->merge(
+    //                         $grandchild->products->flatMap(fn($p) => $p->productSizes->pluck('size'))
+    //                     );
+    //                 }
 
-                    return $child->only(['id', 'slug', 'parent_id', 'sizes']);
-                });
+    //                 $child->sizes = $sizes->unique('id')->values();
 
-                $category->categories = $category->children;
-                unset($category->children);
-            }
+    //                 return $child->only(['id', 'slug', 'parent_id', 'sizes']);
+    //             });
 
-            return $category;
-        });
+    //             $category->categories = $category->children;
+    //             unset($category->children);
+    //         }
 
+    //         return $category;
+    //     });
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'parents' => $parents,
+    //         'data'    => $data->values(), // all or filtered
+    //     ]);
+    // }
+
+public function getCategoriesWithSizes(Request $request)
+{
+    $type = strtolower($request->get('type', ''));
+
+    // 1️⃣ Fetch all top-level parent categories (Men, Women, Kids)
+    $parents = AppCategory::where('parent_id', 0)->get(['id', 'slug']);
+
+    if ($parents->isEmpty()) {
         return response()->json([
-            'success' => true,
-            'parents' => $parents,
-            'data'    => $data->values(), // all or filtered
-        ]);
+            'success' => false,
+            'message' => 'No parent categories found',
+        ], 404);
     }
 
+    // 2️⃣ Optional filter by ?type=men/women/kids
+    $targetParents = $type
+        ? $parents->where('slug', $type)
+        : $parents;
+
+    // 3️⃣ Prepare all sizes grouped by type
+    $sizesByType = Size::all()->groupBy('type');
+
+    // 4️⃣ Build structured response
+    $data = $targetParents->map(function ($parent) use ($sizesByType) {
+        $categories = AppCategory::where('parent_id', $parent->id)
+            ->get(['id', 'slug', 'parent_id']);
+
+        $categories->transform(function ($category) use ($sizesByType) {
+            // 🔍 Map keyword in slug to size type
+            $slug = $category->slug;
+
+            $sizeType = null;
+            if (str_contains($slug, 'shoe')) {
+                $sizeType = 'shoes';
+            } elseif (str_contains($slug, 'top') || str_contains($slug, 'bottom') || str_contains($slug, 'shirt') || str_contains($slug, 'jean') || str_contains($slug, 'short')) {
+                $sizeType = 'clothing';
+            } elseif (str_contains($slug, 'ring')) {
+                $sizeType = 'rings';
+            } elseif (str_contains($slug, 'hat')) {
+                $sizeType = 'hats';
+            } elseif (str_contains($slug, 'pant')) {
+                $sizeType = 'pants';
+            } elseif (str_contains($slug, 'bag')) {
+                $sizeType = 'Bag';
+            }
+
+            $category->sizes = $sizeType && isset($sizesByType[$sizeType])
+                ? $sizesByType[$sizeType]->values()
+                : collect();
+
+            return $category->only(['id', 'slug', 'parent_id', 'sizes']);
+        });
+
+        return [
+            'id' => $parent->id,
+            'slug' => $parent->slug,
+            'parent_id' => $parent->parent_id,
+            'categories' => $categories,
+        ];
+    });
+
+    // 5️⃣ Return structured result
+    return response()->json([
+        'success' => true,
+        'parents' => $parents->map(fn($p) => $p->only(['id', 'slug'])),
+        'data'    => $data->values(),
+    ]);
+}
 
 
     public function getProductMeta(Request $request)
