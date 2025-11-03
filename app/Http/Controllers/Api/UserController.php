@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Currency;
 use App\Models\User;
 use App\Models\UserBrand;
 use App\Models\UserSize;
@@ -234,6 +235,23 @@ class UserController extends Controller
             'success' => true,
             'message' => 'Profile updated successfully',
             'data'    => $user
+        ]);
+    }
+
+    public function getActive()
+    {
+        $currency = Currency::active()->first();
+
+        if (!$currency) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No active currency found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => $currency,
         ]);
     }
 

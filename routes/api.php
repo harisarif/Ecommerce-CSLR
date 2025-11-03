@@ -136,5 +136,6 @@ Route::prefix('v1')->group(function () {
            
     });
     Route::post('/check-username', [UserController::class, 'checkUsername']);
+    Route::get('/currency/active', [UserController::class, 'getActive']);
     Route::apiResource('sizes', SizeController::class);
 });
