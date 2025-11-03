@@ -44,7 +44,6 @@ Route::prefix('v1')->group(function () {
     });
     
     Route::prefix('product')->group(function () {
-        Route::get('/list', [ProductController::class, 'ProductList']);
         Route::get('/special-offers', [ProductController::class, 'getSpecialOfferProducts']);
         Route::get('/promoted', [ProductController::class, 'getPromotedProducts']);
         Route::get('/category/{category_id}', [ProductController::class, 'getProductsByCategory']);
@@ -67,7 +66,7 @@ Route::prefix('v1')->group(function () {
 
         
         Route::prefix('product')->group(function () {
-            Route::get('/get', [ProductController::class, 'getUserProducts']);
+            Route::get('/list', [ProductController::class, 'ProductList']);
             Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
         });
 

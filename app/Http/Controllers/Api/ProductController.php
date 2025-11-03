@@ -22,8 +22,12 @@ class ProductController extends Controller
 
         if ($productId) {
             $product = Product::with([
-                'details','appCategory',
-                'user','variations', 'defaultVariationOptions'])->find($productId);
+            'details',
+            'appCategory:id,slug,name',
+            'brand:id,name',
+            'shop:id,name',
+            'user:id,name,email',
+            'productSizes.size:id,name,type'])->find($productId);
 
             if (!$product) {
                 return response()->json([
@@ -40,8 +44,11 @@ class ProductController extends Controller
 
         // Otherwise return paginated list
         $products = Product::with([
-            'details','appCategory',
-            'user', 'variations', 'defaultVariationOptions'])->paginate(10);
+            'details',
+            'appCategory:id,slug',
+            'brand:id,name',
+            'shop:id,name',
+            'productSizes.size:id,name,type'])->orderBy('created_at', 'desc')->paginate(10);
 
         return response()->json([
             'success' => true,
@@ -357,7 +364,7 @@ class ProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
-                'data' => $product->load(['sizes.size', 'attributes'])
+                'data' => $product->load(['productSizes.size', 'attributes'])
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
