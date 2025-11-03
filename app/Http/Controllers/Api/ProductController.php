@@ -22,12 +22,13 @@ class ProductController extends Controller
 
         if ($productId) {
             $product = Product::with([
-            'details',
-            'appCategory:id,slug,name',
-            'brand:id,name',
-            'shop:id,name',
-            'user:id,name,email',
-            'productSizes.size:id,name,type'])->find($productId);
+                'details',
+                'appCategory:id,slug,name',
+                'brand:id,name',
+                'shop:id,name',
+                'user:id,name,email',
+                'productSizes.size:id,name,type'
+            ])->find($productId);
 
             if (!$product) {
                 return response()->json([
@@ -48,7 +49,8 @@ class ProductController extends Controller
             'appCategory:id,slug',
             'brand:id,name',
             'shop:id,name',
-            'productSizes.size:id,name,type'])->orderBy('created_at', 'desc')->paginate(10);
+            'productSizes.size:id,name,type'
+        ])->orderBy('created_at', 'desc')->paginate(10);
 
         return response()->json([
             'success' => true,
@@ -59,18 +61,18 @@ class ProductController extends Controller
 
     public function getSpecialOfferProducts()
     {
-        $product = Product::with(['details', 'appCategory','user', 'variations', 'defaultVariationOptions'])
-        ->specialOffers()
-        ->orderBy('special_offer_date', 'DESC')
-        ->paginate(10);
+        $product = Product::with(['details', 'appCategory', 'user', 'variations', 'defaultVariationOptions'])
+            ->specialOffers()
+            ->orderBy('special_offer_date', 'DESC')
+            ->paginate(10);
         return response()->json($product);
     }
 
     public function getPromotedProducts()
     {
-        $product = Product::with(['details', 'appCategory', 'user','variations', 'defaultVariationOptions'])
-        ->promoted()
-        ->paginate(10);
+        $product = Product::with(['details', 'appCategory', 'user', 'variations', 'defaultVariationOptions'])
+            ->promoted()
+            ->paginate(10);
         return response()->json($product);
     }
 
@@ -81,8 +83,11 @@ class ProductController extends Controller
         $query = Product::with([
             'details',
             'appCategory',
-            'user',  'variations',
-            'defaultVariationOptions', 'sizes']);
+            'user',
+            'variations',
+            'defaultVariationOptions',
+            'sizes'
+        ]);
 
         if ($isApp) {
             $query->where('app_category_id', $category_id);
@@ -107,11 +112,14 @@ class ProductController extends Controller
         }
 
         $products = Product::whereHas('details', function ($query) use ($keyword) {
-                $query->where('title', 'LIKE', "%{$keyword}%");
-            })
+            $query->where('title', 'LIKE', "%{$keyword}%");
+        })
             ->with([
-                'details', 'appCategory',
-                'user',  'variations', 'defaultVariationOptions'
+                'details',
+                'appCategory',
+                'user',
+                'variations',
+                'defaultVariationOptions'
             ])
             ->limit(20)
             ->get();
@@ -200,7 +208,7 @@ class ProductController extends Controller
             'attributes' => 'array',
             'attributes.*.type' => 'required|string|max:50',
             'attributes.*.value' => 'required|string|max:100',
-            
+
             // 🧩 Parcel Sizes ✅
             'parcelSize' => 'array',
             'parcelSize.*.key' => 'required|string|max:100',
@@ -257,7 +265,7 @@ class ProductController extends Controller
 
             // 📝 Create product details (multi-language ready)
             $product->details()->create([
-                'lang_id' => 1, 
+                'lang_id' => 1,
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'short_description' => $validated['short_description'] ?? null,
@@ -337,7 +345,7 @@ class ProductController extends Controller
                     $relativePath = date('Ym') . '/' . $filename;
 
                     if ($index === 0) {
-                    // 🖼 Save the first image as the main product image
+                        // 🖼 Save the first image as the main product image
                         \App\Models\Image::create([
                             'product_id' => $product->id,
                             'image_default' => $relativePath,
@@ -437,11 +445,14 @@ class ProductController extends Controller
             ->toArray();
         $favCategories = $userSizes->pluck('app_category_id')->filter()->unique()->toArray();
 
+        // Base query
         $productsQuery = Product::query()
             ->with([
+                'details',
                 'brand:id,name',
                 'appCategory:id,slug',
-                'productSizes.size',
+                'shop:id,name',
+                'productSizes.size:id,name,type',
             ])
             ->where('status', 1) // only active
             ->where('stock', '>', 0); // only in-stock
@@ -458,27 +469,29 @@ class ProductController extends Controller
                 foreach ($userSizes as $us) {
                     $query->orWhere(function ($q) use ($us) {
                         $q->where('app_category_id', $us->app_category_id)
-                        ->whereHas('productSizes', function ($q2) use ($us) {
-                            $q2->where('size_id', $us->size_id);
-                        });
+                            ->whereHas('productSizes', function ($q2) use ($us) {
+                                $q2->where('size_id', $us->size_id);
+                            });
                     });
                 }
             }
 
             // Fallback: only categories if no sizes
-            if (empty($userSizes) && !empty($favCategories)) {
+            if ($userSizes->isEmpty() && !empty($favCategories)) {
                 $query->orWhereIn('app_category_id', $favCategories);
             }
         });
 
-        $products = $productsQuery->get();
+        // ✅ Paginate results (same as ProductList)
+        $products = $productsQuery->orderBy('created_at', 'desc')->paginate(10);
 
         return response()->json([
-            'success' => true,
+            'success'  => true,
             'count'   => $products->count(),
-            'data'    => $products,
+            'products' => $products,
         ]);
     }
+
 
 
     public function getProductWithShop($id)
@@ -500,17 +513,17 @@ class ProductController extends Controller
         }
 
         // ✅ Fetch related products
-        $relatedProducts = Product::with(['attributes','shop'])
-        ->where('id', '!=', $product->id)
-        ->where(function ($q) use ($product) {
-            if ($product->category_id) {
-                $q->where('category_id', $product->category_id);
-            } elseif ($product->app_category_id) {
-                $q->where('app_category_id', $product->app_category_id);
-            }
-        })
-        ->limit(6)
-        ->get();
+        $relatedProducts = Product::with(['attributes', 'shop'])
+            ->where('id', '!=', $product->id)
+            ->where(function ($q) use ($product) {
+                if ($product->category_id) {
+                    $q->where('category_id', $product->category_id);
+                } elseif ($product->app_category_id) {
+                    $q->where('app_category_id', $product->app_category_id);
+                }
+            })
+            ->limit(6)
+            ->get();
 
         // ✅ Suggested prices (all lower than actual)
         $actualPrice = $product->price;
@@ -537,13 +550,4 @@ class ProductController extends Controller
             'suggested_prices' => $suggestedPrices
         ]);
     }
-
-
-
-
-
-
-
-
-
 }

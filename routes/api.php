@@ -66,7 +66,7 @@ Route::prefix('v1')->group(function () {
 
         
         Route::prefix('product')->group(function () {
-            Route::get('/list', [ProductController::class, 'ProductList']);
+            Route::get('/list', [ProductController::class, 'getUserProducts']);
             Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
         });
 
