@@ -21,7 +21,7 @@ class StripeCheckoutController extends Controller
         $user = $request->user();
 
         $request->validate([
-            'cart_id' => 'nullable|string|exists:carts,cart_id',
+            'cart_id' => 'nullable|string|exists:cart_products,cart_id',
             'product_id' => 'nullable|integer|exists:products,id',
             'shop_id' => 'nullable|integer|exists:shops,id',
         ]);
