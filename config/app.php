@@ -105,7 +105,7 @@ return [
         ),
     ],
 
-    'frontend_url' => env('APP_FRONTEND_URL', 'https://lightgray-dragonfly-620192.hostingersite.com/'),
+    'frontend_url' => env('APP_FRONTEND_URL', 'https://lightgray-dragonfly-620192.hostingersite.com'),
 
     /*
     |--------------------------------------------------------------------------
