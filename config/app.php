@@ -105,6 +105,8 @@ return [
         ),
     ],
 
+    'frontend_url' => env('APP_FRONTEND_URL', 'https://lightgray-dragonfly-620192.hostingersite.com/'),
+
     /*
     |--------------------------------------------------------------------------
     | Maintenance Mode Driver
