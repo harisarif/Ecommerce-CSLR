@@ -56,14 +56,12 @@ class Cart extends Model
 
         $existingKey = $products->search(function ($p) use ($item) {
             return $p['product_id'] == $item['product_id'] &&
-                   ($p['variation_option_id'] ?? null) == ($item['variation_option_id'] ?? null);
+                ($p['variation_option_id'] ?? null) == ($item['variation_option_id'] ?? null);
         });
 
         if ($existingKey !== false) {
             $products[$existingKey]['quantity'] += $item['quantity'] ?? 1;
-            $products[$existingKey]['total_price'] =  $products[$existingKey]['quantity'] * $products[$existingKey]['product_price'];
-            $products[$existingKey]['unit_price'] = $item['unit_price'] ?? $products[$existingKey]['unit_price'];
-            $products[$existingKey]['seller_id'] = $item['seller_id'] ?? $products[$existingKey]['seller_id'];
+            $products[$existingKey]['total_price'] = $products[$existingKey]['quantity'] * $products[$existingKey]['product_price'];
         } else {
             $products->push([
                 'product_id' => $item['product_id'],
@@ -73,16 +71,17 @@ class Cart extends Model
                 'product_image' => $item['product_image'] ?? null,
                 'quantity' => $item['quantity'] ?? 1,
                 'total_price' => ($item['product_price'] ?? 0) * ($item['quantity'] ?? 1),
-
-                'unit_price' => $item['unit_price'] ?? $item['product_price'] ?? 0,
                 'seller_id' => $item['seller_id'] ?? null,
+                'shop_id' => $item['shop_id'] ?? null,
+                'shop_name' => $item['shop_name'] ?? '',
                 'product_type' => $item['product_type'] ?? 'physical',
             ]);
         }
 
-        $this->products_data = $products;
+        $this->products_data = $products->values();
         $this->save();
     }
+
 
     public function removeItem($productId, $variationId = null): void
     {

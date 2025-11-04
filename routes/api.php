@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\StripeCheckoutController;
 
 Route::prefix('v1')->group(function () {
 
@@ -51,6 +52,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware('auth:api')->group(function () {
+        Route::post('/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']);
         Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
@@ -138,4 +140,5 @@ Route::prefix('v1')->group(function () {
     Route::post('/check-username', [UserController::class, 'checkUsername']);
     Route::get('/currency/active', [UserController::class, 'getActive']);
     Route::apiResource('sizes', SizeController::class);
+    Route::post('/stripe/webhook', [StripeCheckoutController::class, 'handleStripeWebhook']);
 });
