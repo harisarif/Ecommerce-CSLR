@@ -53,15 +53,16 @@ class Cart extends Model
     public function addItem(array $item): void
     {
         $products = collect($this->products_data ?? []);
-
         $existingKey = $products->search(function ($p) use ($item) {
-            return $p['product_id'] == $item['product_id'] &&
-                ($p['variation_option_id'] ?? null) == ($item['variation_option_id'] ?? null);
+            return (int)$p['product_id'] === (int)$item['product_id'] &&
+                (int)($p['variation_option_id'] ?? 0) === (int)($item['variation_option_id'] ?? 0);
         });
 
         if ($existingKey !== false) {
-            $products[$existingKey]['quantity'] += $item['quantity'] ?? 1;
-            $products[$existingKey]['total_price'] = $products[$existingKey]['quantity'] * $products[$existingKey]['product_price'];
+            $existingItem = $products->get($existingKey);
+            $existingItem['quantity'] += $item['quantity'] ?? 1;
+            $existingItem['total_price'] = $existingItem['quantity'] * $existingItem['product_price'];
+            $products->put($existingKey, $existingItem);
         } else {
             $products->push([
                 'product_id' => $item['product_id'],
@@ -77,6 +78,7 @@ class Cart extends Model
                 'product_type' => $item['product_type'] ?? 'physical',
             ]);
         }
+
 
         $this->products_data = $products->values();
         $this->save();
