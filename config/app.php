@@ -106,6 +106,7 @@ return [
     ],
 
     'frontend_url' => env('APP_FRONTEND_URL', 'https://lightgray-dragonfly-620192.hostingersite.com'),
+    'counter_limit' => env('OFFER_COUNTER_LIMIT', 3),
 
     /*
     |--------------------------------------------------------------------------

@@ -19,6 +19,7 @@ class Offer extends Model
         'responded_at',
         'buyer_read',
         'seller_read',
+        'expires_at'
     ];
 
     protected $casts = [
@@ -26,6 +27,8 @@ class Offer extends Model
         'seller_read' => 'boolean',
         'responded_at' => 'datetime',
     ];
+
+    protected $appends = ['is_expired'];
 
     // relations
     public function product()
@@ -46,8 +49,18 @@ class Offer extends Model
     // convenience scope
     public function scopeForUser($query, $userId)
     {
-        return $query->where(function($q) use ($userId) {
+        return $query->where(function ($q) use ($userId) {
             $q->where('buyer_id', $userId)->orWhere('seller_id', $userId);
         });
+    }
+
+    public function getIsExpiredAttribute()
+    {
+        return $this->expires_at && now()->greaterThanOrEqualTo($this->expires_at);
+    }
+
+    public function counters()
+    {
+        return $this->hasMany(OfferCounter::class);
     }
 }
