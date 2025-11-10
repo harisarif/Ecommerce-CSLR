@@ -96,6 +96,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('shop')->group(function () {
             Route::post('/create', [ShopController::class, 'store']);
             Route::get('/my-shop', [ShopController::class, 'myShop']);
+            Route::get('/list', [ShopController::class, 'shopsList']);
             Route::get('/{id}', [ShopController::class, 'show']);
 
 

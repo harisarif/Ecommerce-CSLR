@@ -233,4 +233,21 @@ class ShopController extends Controller
 
         return response()->json(['following' => $isFollowing]);
     }
+
+
+    public function shopsList(Request $request)
+    {
+        $user = $request->user();
+
+        // Fetch all shops except current user's
+        $shops = Shop::where('user_id', '!=', $user->id)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'message' => 'Shops fetched successfully',
+            'data' => $shops
+        ]);
+    }
 }
