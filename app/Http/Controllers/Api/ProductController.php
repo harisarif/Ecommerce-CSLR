@@ -494,8 +494,9 @@ class ProductController extends Controller
 
 
 
-    public function getProductWithShop($id)
+    public function getProductWithShop(Request $request, $id)
     {
+        $user = $request->user(); 
         $product = Product::with([
             'attributes',
             'details',
@@ -511,6 +512,9 @@ class ProductController extends Controller
                 'message' => 'Product not found.'
             ], 404);
         }
+
+        // ✅ Determine if the authenticated user is the seller
+        $isSeller = $user && $product->user_id === $user->id;
 
         // ✅ Fetch related products
         $relatedProducts = Product::with(['attributes', 'shop'])
@@ -547,7 +551,8 @@ class ProductController extends Controller
             'success' => true,
             'data' => $product,
             'related_products' => $relatedProducts,
-            'suggested_prices' => $suggestedPrices
+            'suggested_prices' => $suggestedPrices,
+            'isSeller' => $isSeller, // ✅ Added flag
         ]);
     }
 }
