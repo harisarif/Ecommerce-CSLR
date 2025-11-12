@@ -24,6 +24,16 @@ class StripeCheckoutController extends Controller
             'cart_id' => 'nullable|string|exists:cart_products,cart_id',
             'product_id' => 'nullable|integer|exists:products,id',
             'shop_id' => 'nullable|integer|exists:shops,id',
+            'address' => 'required|array',
+            'address.first_name' => 'required|string',
+            'address.last_name' => 'required|string',
+            'address.email' => 'required|email',
+            'address.phone_number' => 'required|string',
+            'address.address' => 'required|string',
+            'address.city' => 'required|string',
+            'address.zip_code' => 'required|string',
+            'address.state_id' => 'nullable|integer',
+            'address.country_id' => 'nullable|integer',
         ]);
 
         Stripe::setApiKey(env('STRIPE_SECRET'));
@@ -114,6 +124,7 @@ class StripeCheckoutController extends Controller
                     'cart_id' => $request->cart_id ?? null,
                     'shop_id' => $request->shop_id ?? null,
                     'product_ids' => $products->pluck('product_id')->implode(','),
+                    'shipping_address' => json_encode($request->address ?? []),
                 ],
                 'success_url' => config('app.frontend_url') . '/order-success?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('app.frontend_url') . '/checkout-cancelled',
@@ -201,6 +212,24 @@ class StripeCheckoutController extends Controller
                         'product_total_price' => $product->price,
                         'product_type' => 'physical',
                         'order_status' => 'paid',
+                    ]);
+                }
+
+                // ✅ Save Shipping Address (if provided)
+                if (!empty($address)) {
+                    ShippingAddress::create([
+                        'user_id' => $userId,
+                        'title' => ($address['first_name'] ?? '') . ' ' . ($address['last_name'] ?? ''),
+                        'first_name' => $address['first_name'] ?? '',
+                        'last_name' => $address['last_name'] ?? '',
+                        'email' => $address['email'] ?? '',
+                        'phone_number' => $address['phone_number'] ?? '',
+                        'address' => $address['address'] ?? '',
+                        'city' => $address['city'] ?? '',
+                        'zip_code' => $address['zip_code'] ?? '',
+                        'state_id' => $address['state_id'] ?? null,
+                        'country_id' => $address['country_id'] ?? null,
+                        'address_type' => 'shipping',
                     ]);
                 }
 
