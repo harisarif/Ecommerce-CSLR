@@ -67,6 +67,7 @@ class CartController extends Controller
             'product_price' => $product->price_discounted > 0 ? $product->price_discounted : $product->price,
             'product_image' => $product->main_image ?? null,
             'quantity' => $request->quantity,
+            'currency' => $product->currency,
             'shop_id' => $product->shop_id,
             'shop_name' => $product->shop?->name,
             'seller_id' => $product->shop?->user_id,

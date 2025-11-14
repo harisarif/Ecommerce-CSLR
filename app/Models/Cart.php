@@ -71,6 +71,7 @@ class Cart extends Model
                 'product_price' => $item['product_price'] ?? 0,
                 'product_image' => $item['product_image'] ?? null,
                 'quantity' => $item['quantity'] ?? 1,
+                'currency' => $item['currency'],
                 'total_price' => ($item['product_price'] ?? 0) * ($item['quantity'] ?? 1),
                 'seller_id' => $item['seller_id'] ?? null,
                 'shop_id' => $item['shop_id'] ?? null,
