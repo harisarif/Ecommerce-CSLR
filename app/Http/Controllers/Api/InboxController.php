@@ -145,7 +145,7 @@ class InboxController extends Controller
                 'data' => [
 
                     'offer_id'   => $offer->id,
-                    'type'       => $latestCounter ? 'counter_offer' : 'offer',
+                    'type' => $latestCounter ? $latestCounter->type : 'offer',
                     'price'      => $latestCounter ? $latestCounter->price : $offer->price,
                     'message'    => $latestCounter ? $latestCounter->message : $offer->message,
                     'created_at' => $latestCounter ? $latestCounter->created_at : $offer->created_at,
