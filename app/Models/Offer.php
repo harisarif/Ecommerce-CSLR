@@ -63,4 +63,10 @@ class Offer extends Model
     {
         return $this->hasMany(OfferCounter::class);
     }
+
+    public function shop()
+    {
+        return $this->product()->with('shop');
+    }
+
 }

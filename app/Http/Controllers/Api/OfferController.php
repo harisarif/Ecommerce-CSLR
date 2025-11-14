@@ -16,6 +16,8 @@ use App\Notifications\OfferNotification;
 use App\Models\Notification;
 use App\Models\OfferCounter;
 use App\Models\Shop;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class OfferController extends Controller
 {
@@ -85,24 +87,25 @@ class OfferController extends Controller
                     'sent_at' => now(),
                 ]);
 
-                // ✅ Create message
-                $message = OfferMessage::create([
-                    'offer_id' => $offer->id,
-                    'sender_id' => $user->id,
-                    'recipient_id' => $recipientShop->user_id,
-                    'body' => "{$user->username} sent an offer for product \"{$product->slug}\" at price {$data['price']} AED",
-                    'meta' => [
-                        'product_id' => $product->id,
-                        'product_title' => $product->slug,
-                        'price_offered' => $data['price'],
-                        'type' => 'offer',
-                    ],
-                    'is_read' => false,
-                ]);
+                // // ✅ Create message
+                // $message = OfferMessage::create([
+                //     'offer_id' => $offer->id,
+                //     'sender_id' => $user->id,
+                //     'recipient_id' => $recipientShop->user_id,
+                //     'body' => "{$user->username} sent an offer for product \"{$product->slug}\" at price {$data['price']} AED",
+                //     'meta' => [
+                //         'product_id' => $product->id,
+                //         'product_title' => $product->slug,
+                //         'price_offered' => $data['price'],
+                //         'type' => 'offer',
+                //     ],
+                //     'is_read' => false,
+                // ]);
 
                 // ✅ Send notification
                 $recipient = $recipientShop->user;
-                $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+                // $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+                $notificationText = "{$user->username} sent you a new offer for product \"{$product->slug}\" at price {$data['price']} AED";
 
                 Notification::create([
                     'type' => 'offer',
@@ -131,9 +134,9 @@ class OfferController extends Controller
                     'product_id' => $product->id,
                 ]);
 
-                PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-                    'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-                ]);
+                // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+                //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+                // ]);
 
                 $createdOffers[] = $offer;
             }
@@ -169,26 +172,27 @@ class OfferController extends Controller
                 'sent_at' => now(),
             ]);
 
-            // ✅ Create initial offer message
-            $message = OfferMessage::create([
-                'offer_id' => $offer->id,
-                'sender_id' => $user->id,
-                'recipient_id' => $sellerUserId,
-                'body' => "{$user->username} sent an offer for the product \"{$product->slug}\" at price {$data['price']}",
-                'meta' => [
-                    'product_id' => $product->id,
-                    'product_title' => $product->slug,
-                    'price_offered' => $data['price'],
-                    'type'           => 'offer',
-                ],
-                'is_read' => false,
-            ]);
+            // // ✅ Create initial offer message
+            // $message = OfferMessage::create([
+            //     'offer_id' => $offer->id,
+            //     'sender_id' => $user->id,
+            //     'recipient_id' => $sellerUserId,
+            //     'body' => "{$user->username} sent an offer for the product \"{$product->slug}\" at price {$data['price']}",
+            //     'meta' => [
+            //         'product_id' => $product->id,
+            //         'product_title' => $product->slug,
+            //         'price_offered' => $data['price'],
+            //         'type'           => 'offer',
+            //     ],
+            //     'is_read' => false,
+            // ]);
 
 
 
             // ✅ Prepare notification
             $recipient = User::find($sellerUserId);
-            $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+            // $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+            $notificationText = "{$user->username} sent you a new offer for product \"{$product->slug}\" at price {$data['price']} AED";
 
             if ($recipient) {
                 // ✅ Manual notification insert
@@ -220,39 +224,125 @@ class OfferController extends Controller
                     'product_id' => $product->id,
                 ]);
 
-                PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-                    'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-                ]);
+                // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+                //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+                // ]);
             }
             return response()->json(['message' => 'Offer sent', 'data' => $offer], 201);
         }
     }
 
-    // my sent offers (buyer)
-    public function sent(Request $request)
-    {
-        $user = $request->user();
-
-        $offers = Offer::where('buyer_id', $user->id)
-            ->with(['product', 'seller'])
-            ->latest()
-            ->paginate(20);
-
-        return response()->json($offers);
-    }
-
-    // my received offers (seller)
     public function received(Request $request)
     {
         $user = $request->user();
 
         $offers = Offer::where('seller_id', $user->id)
-            ->with(['product', 'buyer'])
-            ->latest()
-            ->paginate(20);
+                ->where(function ($q) {
+                $q->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
+            })
+            ->with(['product', 'buyer:id,username,avatar'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('product_id')
+            ->map(function (Collection $productOffers) {
+                $product = $productOffers->first()->product;
 
-        return response()->json($offers);
+                // Group by buyer to get latest offer per buyer
+                $latestByBuyer = $productOffers->groupBy('buyer_id')->map(function ($buyerOffers) {
+                    return $buyerOffers->sortByDesc('id')->first();
+                });
+
+                return [
+                    'product_id' => $product->id,
+                    'product_slug' => $product->slug,
+                    'product_image' => $product->main_image,
+                    'offers_count' => $latestByBuyer->count(),
+                    'latest_offers' => $latestByBuyer->values()->map(function ($offer) {
+                        return [
+                            'id'         => $offer->id,
+                            'price'      => $offer->price,
+                            'message'    => $offer->message,
+                            'status'     => $offer->status,
+                            'created_at' => $offer->created_at,
+                            'buyer'      => [
+                                'id'       => $offer->buyer->id,
+                                'username' => $offer->buyer->username,
+                                'avatar'   => $offer->buyer->avatar,
+                            ],
+                        ];
+                    }),
+                ];
+            })->values();
+
+        // manual pagination
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
+        $offset = ($page - 1) * $perPage;
+        $paginated = new LengthAwarePaginator(
+            $offers->slice($offset, $perPage)->values(),
+            $offers->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return response()->json(['success' => true, 'data' => $paginated]);
     }
+
+
+    public function sent(Request $request)
+    {
+        $user = $request->user();
+
+        $offers = Offer::where('buyer_id', $user->id)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
+            })
+            ->with(['product', 'seller:id,username,avatar'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('product_id')
+            ->map(function (Collection $productOffers) {
+                $product = $productOffers->first()->product;
+                $latest  = $productOffers->sortByDesc('id')->first();
+
+                return [
+                    'product_id' => $product->id,
+                    'product_slug' => $product->slug,
+                    'product_image' => $product->main_image,
+                    'offers_count' => $productOffers->count(),
+                    'latest_offer' => [
+                        'id'         => $latest->id,
+                        'price'      => $latest->price,
+                        'message'    => $latest->message,
+                        'status'     => $latest->status,
+                        'created_at' => $latest->created_at,
+                        'seller'     => [
+                            'id'       => $latest->seller->id,
+                            'username' => $latest->seller->username,
+                            'avatar'   => $latest->seller->avatar,
+                        ],
+                    ],
+                ];
+            })->values();
+
+        // manual pagination
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
+        $offset = ($page - 1) * $perPage;
+        $paginated = new LengthAwarePaginator(
+            $offers->slice($offset, $perPage)->values(),
+            $offers->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return response()->json(['success' => true, 'data' => $paginated]);
+    }
+
 
     // accept/reject offer
     public function update(Request $request, $id)
@@ -275,21 +365,21 @@ class OfferController extends Controller
             return response()->json(['message' => 'Offer already responded to'], 422);
         }
 
-        // ✅ Log response message
-        $message = OfferMessage::create([
-            'offer_id'     => $offer->id,
-            'sender_id'    => $user->id,
-            'recipient_id' => $offer->buyer_id,
-            'body'         => "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price}",
-            'meta' => [
-                'product_id'     => $offer->product->id,
-                'product_title'  => $offer->product->slug,
-                'price_offered'  => $offer->price,
-                'type'           => 'offer_response',
-                'status'         => $data['status'],
-            ],
-            'is_read' => false,
-        ]);
+        // // ✅ Log response message
+        // $message = OfferMessage::create([
+        //     'offer_id'     => $offer->id,
+        //     'sender_id'    => $user->id,
+        //     'recipient_id' => $offer->buyer_id,
+        //     'body'         => "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price}",
+        //     'meta' => [
+        //         'product_id'     => $offer->product->id,
+        //         'product_title'  => $offer->product->slug,
+        //         'price_offered'  => $offer->price,
+        //         'type'           => 'offer_response',
+        //         'status'         => $data['status'],
+        //     ],
+        //     'is_read' => false,
+        // ]);
 
         $offer->status = $data['status'];
         $offer->responded_at = Carbon::now();
@@ -299,7 +389,8 @@ class OfferController extends Controller
 
         // ✅ Send notification & pusher
         $recipient = User::find($offer->buyer_id);
-        $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+        // $notificationText = MessageTypeHelper::notificationText($message, $user->username);
+        $notificationText = "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price} AED";
 
         if ($recipient) {
             // ✅ Manual notification insert
@@ -329,9 +420,9 @@ class OfferController extends Controller
                 ],
             ]);
 
-            PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-                'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-            ]);
+            // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
+            //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
+            // ]);
         }
 
         return response()->json(['message' => 'Offer updated', 'data' => $offer]);
@@ -366,37 +457,44 @@ class OfferController extends Controller
         }
 
         // ✅ Update offer
-        $offer->price = $data['price'];
         $offer->status = 'pending';
+        $offer->responded_at = now();
         $offer->save();
 
+
         // ✅ Log in offer_counters table
-        \App\Models\OfferCounter::create([
+        $recipientId = $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id;
+        $recipient = User::find($recipientId);
+
+        OfferCounter::create([
             'offer_id' => $offer->id,
             'sender_id' => $user->id,
-            'recipient_id' => $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id,
+            'recipient_id' => $recipientId,
             'price' => $data['price'],
             'type' => 'counter_offer',
             'message' => $data['message'] ?? null,
         ]);
 
-        // ✅ Create chat message
-        $message = OfferMessage::create([
-            'offer_id'     => $offer->id,
-            'sender_id'    => $user->id,
-            'recipient_id' => $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id,
-            'body'         => "{$user->username} sent a counter offer for product \"{$offer->product->slug}\" at price {$data['price']}",
-            'meta' => [
-                'product_id'     => $offer->product->id,
-                'product_title'  => $offer->product->slug,
-                'price_offered'  => $data['price'],
-                'type'           => 'counter_offer',
-            ],
-            'is_read' => false,
-        ]);
+        $notificationText = "{$user->username} sent a counter offer at price {$data['price']} AED";
+
+
+        // // ✅ Create chat message
+        // $message = OfferMessage::create([
+        //     'offer_id'     => $offer->id,
+        //     'sender_id'    => $user->id,
+        //     'recipient_id' => $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id,
+        //     'body'         => "{$user->username} sent a counter offer for product \"{$offer->product->slug}\" at price {$data['price']}",
+        //     'meta' => [
+        //         'product_id'     => $offer->product->id,
+        //         'product_title'  => $offer->product->slug,
+        //         'price_offered'  => $data['price'],
+        //         'type'           => 'counter_offer',
+        //     ],
+        //     'is_read' => false,
+        // ]);
 
         // ✅ Notify recipient
-        $recipient = User::find($message->recipient_id);
+  
         if ($recipient) {
             Notification::create([
                 'type' => 'counter_offer',
@@ -404,7 +502,7 @@ class OfferController extends Controller
                 'notifiable_id' => $recipient->id,
                 'data' => [
                     'title' => 'Counter Offer',
-                    'body' => "{$user->username} sent a counter offer at price {$data['price']}",
+                    'body' => $notificationText,
                     'sender_id' => $user->id,
                     'recipient_id' => $recipient->id,
                     'offer_id' => $offer->id,
@@ -414,7 +512,7 @@ class OfferController extends Controller
 
             PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
                 'title' => 'Counter Offer',
-                'body' => "{$user->username} sent a counter offer at price {$data['price']}",
+                'body' => $notificationText,
                 'type' => 'counter_offer',
                 'sender' => [
                     'id' => $user->id,
@@ -424,9 +522,35 @@ class OfferController extends Controller
             ]);
         }
 
+        // Fetch the newly created counter offer
+        $newCounter = OfferCounter::where('offer_id', $offer->id)
+            ->where('sender_id', $user->id)
+            ->latest()
+            ->first();
+
         return response()->json([
             'message' => 'Counter offer sent successfully',
-            'data' => $offer,
+                'offer' => [
+                    'id' => $offer->id,
+                    'product_id' => $offer->product_id,
+                    'buyer_id' => $offer->buyer_id,
+                    'seller_id' => $offer->seller_id,
+                    
+                    // ❗ show updated counter price but NOT saving in DB
+                    'price' => $newCounter->price,
+
+                    // ❗ show type based on counter offer
+                    'type' => 'counter_offer',
+
+                    'message' => $newCounter->message,
+                    'status' => $offer->status,
+                    'expires_at' => $offer->expires_at,
+                    'responded_at' => $offer->responded_at,
+                    'created_at' => $offer->created_at,
+                    'updated_at' => $offer->updated_at,
+
+                     'product' => $offer->product,
+                ],
         ]);
     }
 
@@ -506,6 +630,33 @@ class OfferController extends Controller
     //         'message' => 'Counter offer sent successfully',
     //         'data' => $offer
     //     ]);
+    // }
+
+
+    // // my sent offers (buyer)
+    // public function sent(Request $request)
+    // {
+    //     $user = $request->user();
+
+    //     $offers = Offer::where('buyer_id', $user->id)
+    //         ->with(['product', 'seller'])
+    //         ->latest()
+    //         ->paginate(20);
+
+    //     return response()->json($offers);
+    // }
+
+    // // my received offers (seller)
+    // public function received(Request $request)
+    // {
+    //     $user = $request->user();
+
+    //     $offers = Offer::where('seller_id', $user->id)
+    //         ->with(['product', 'buyer'])
+    //         ->latest()
+    //         ->paginate(20);
+
+    //     return response()->json($offers);
     // }
 
 }
