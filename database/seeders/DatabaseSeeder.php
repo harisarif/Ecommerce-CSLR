@@ -16,7 +16,10 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
         // $this->call(SizeSeeder::class);
         // $this->call(ProductSizesSeeder::class);
-        $this->call(ProductMetaSeeder::class);
-
+        // $this->call(ProductMetaSeeder::class);
+        $this->call([
+            StyleSeeder::class,
+            BodyFitSeeder::class,
+        ]);
     }
 }

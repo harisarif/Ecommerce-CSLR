@@ -9,7 +9,9 @@ use App\Models\Size;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\BodyFit;
 use App\Models\ProductAttribute;
+use App\Models\Style;
 use Illuminate\Support\Facades\DB;
 
 class DiscoverController extends Controller
@@ -52,21 +54,41 @@ class DiscoverController extends Controller
                 $item->hex_code = $colorMap[$normalized] ?? null;
                 return $item;
             });
-        $styles = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
-            ->where('type', 'style')
-            ->whereHas('product', function ($q) {
-                $q->where('status', 1);
-            })
-            ->groupBy('value')
-            ->get();
+        // STYLES
+        $styles = Style::select('id', 'name')
+            ->get()
+            ->map(function ($style) {
+                $count = ProductAttribute::where('type', 'style')
+                    ->where('value', $style->name)
+                    ->whereHas('product', function ($q) {
+                        $q->where('status', 1);
+                    })
+                    ->distinct('product_id')
+                    ->count('product_id');
 
-        $bodyFits = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
-            ->where('type', 'body_fit')
-            ->whereHas('product', function ($q) {
-                $q->where('status', 1);
-            })
-            ->groupBy('value')
-            ->get();
+                return [
+                    'name'  => $style->name,
+                    'count' => $count,
+                ];
+            });
+
+        // BODY FITS
+        $bodyFits = BodyFit::select('id', 'name')
+            ->get()
+            ->map(function ($fit) {
+                $count = ProductAttribute::where('type', 'body_fit')
+                    ->where('value', $fit->name)
+                    ->whereHas('product', function ($q) {
+                        $q->where('status', 1);
+                    })
+                    ->distinct('product_id')
+                    ->count('product_id');
+
+                return [
+                    'name'  => $fit->name,
+                    'count' => $count,
+                ];
+            });
 
 
         $priceRange = [

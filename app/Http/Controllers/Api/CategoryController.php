@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\AppCategory;
+use App\Models\BodyFit;
 use App\Models\Brand;
 use App\Models\ProductCondition;
 use App\Models\ProductMaterial;
 use App\Models\ProductParcelSize;
 use App\Models\Size;
+use App\Models\Style;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
@@ -294,6 +296,8 @@ public function getCategoriesWithSizes(Request $request)
             'name',
             'description',
         )->get();
+        $styles = Style::select('id', 'name')->get();
+        $bodyFits = BodyFit::select('id', 'name')->get();
 
         return response()->json([
             'success' => true,
@@ -302,7 +306,9 @@ public function getCategoriesWithSizes(Request $request)
             'conditions' => $conditions,
             'colors' => $colors,
             'materials' => $materials,
-            'parcelSize' => $parcelSize
+            'parcelSize' => $parcelSize,
+            'styles' => $styles,
+            'body_fits' => $bodyFits,
         ]);
     }
 }
