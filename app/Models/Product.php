@@ -131,7 +131,23 @@ class Product extends Model
         'mainImageRelation'
     ];
 
-    protected $appends = ['is_favorite', 'main_image', 'product_images'];
+    protected $appends = ['is_favorite', 'main_image', 'product_images' , 'isOfferSent'];
+
+    public function getIsOfferSentAttribute()
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return false; // Not logged in, cannot have sent an offer
+        }
+
+        // Check if the authenticated user (buyer) already has a pending, non-expired offer
+        return Offer::where('product_id', $this->id)
+            ->where('buyer_id', $user->id)   // Only check as buyer
+            ->where('status', 'pending')    // Only pending offers
+            ->where('expires_at', '>', now()) // Not expired
+            ->exists();
+    }
 
     public function getIsFavoriteAttribute()
     {

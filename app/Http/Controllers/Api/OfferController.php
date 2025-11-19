@@ -43,11 +43,24 @@ class OfferController extends Controller
                 'message' => 'The offer expiry date cannot exceed 30 days from today.'
             ], 422);
         }
-
+        
         $product = Product::with('shop.user')->findOrFail($data['product_id']);
 
         if (!$product->shop) {
             return response()->json(['message' => 'Product does not belong to a shop'], 422);
+        }
+        
+        // 🔹 Prevent sending duplicate offers
+        $existingOffer = Offer::where('product_id', $product->id)
+            ->where('buyer_id', $user->id)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if ($existingOffer) {
+            return response()->json([
+                'message' => 'You already sent an offer for this product. Please wait until it is accepted or expired.'
+            ], 422);
         }
 
         $sellerUserId = $product->shop->user_id;
