@@ -65,11 +65,12 @@ class StripeCheckoutController extends Controller
                 $product = Product::with('shop')->findOrFail($request->product_id);
                 $products->push([
                     'product_id' => $product->id,
-                    'name' => $product->name,
+                    'name' => $product->slug,
                     'amount' => $product->price,
                     'quantity' => 1,
                     'shop_id' => $product->shop_id,
                 ]);
+
             } elseif ($request->filled('cart_id')) {
                 $cart = Cart::where('cart_id', $request->cart_id)->firstOrFail();
                 $cartProducts = collect($cart->products_data);
@@ -106,7 +107,7 @@ class StripeCheckoutController extends Controller
                         'product_data' => [
                             'name' => $item['name'],
                         ],
-                        'unit_amount' => intval($item['amount'] * 100), // convert AED to fils
+                       'unit_amount' => max(1, intval(floatval($item['amount']) * 100)), // convert AED to fils
                     ],
                     'quantity' => $item['quantity'],
                 ];
