@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
-use App\Models\{Cart, Product, Currency, Order, OrderProduct, ShippingAddress};
+use App\Models\{Cart, Product, Currency, Offer, OfferCounter, Order, OrderProduct, ShippingAddress};
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 
@@ -24,6 +24,7 @@ class StripeCheckoutController extends Controller
             'cart_id' => 'nullable|string|exists:cart_products,cart_id',
             'product_id' => 'nullable|integer|exists:products,id',
             'shop_id' => 'nullable|integer|exists:shops,id',
+            'offer_id' => 'nullable|integer|exists:offers,id',
             'address' => 'nullable|array',
             'address.first_name' => 'nullable|string',
             'address.last_name' => 'nullable|string',
@@ -35,7 +36,6 @@ class StripeCheckoutController extends Controller
             'address.state_id' => 'nullable|integer',
             'address.country_id' => 'nullable|integer',
         ]);
-
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
         DB::beginTransaction();
@@ -60,7 +60,41 @@ class StripeCheckoutController extends Controller
             $products = collect();
             $currency = Currency::where('status', 1)->value('code') ?? 'AED';
 
-            if ($request->filled('product_id') && !$request->filled('cart_id')) {
+           if ($request->filled('offer_id')) {
+                // Offer checkout must be for a single product
+                $offer = Offer::with('product')->findOrFail($request->offer_id);
+
+                // if product_id passed, validate match
+                if ($request->filled('product_id') && $request->product_id != $offer->product_id) {
+                    return response()->json(['message' => 'The provided product_id does not match the offer\'s product.'], 422);
+                }
+
+                // Get latest counter or offer entry (offer_counters stores history)
+                $latestCounter = OfferCounter::where('offer_id', $offer->id)
+                    ->orderByDesc('id')
+                    ->first();
+
+                $price = $latestCounter ? $latestCounter->price : $offer->price;
+                $counterId = $latestCounter ? $latestCounter->id : null;
+
+                $product = $offer->product;
+                if (!$product) {
+                    return response()->json(['message' => 'Offer product not found.'], 404);
+                }
+
+                $products->push([
+                    'product_id' => $product->id,
+                    'name' => $product->slug ?? ($product->details()->first()->title ?? 'Product'),
+                    'amount' => $price,
+                    'quantity' => 1,
+                    'shop_id' => $product->shop_id,
+                    // include offer metadata for later use
+                    'offer_id' => $offer->id,
+                    'offer_counter_id' => $counterId,
+                ]);
+            }
+            // direct product checkout (single product) without offer
+            elseif ($request->filled('product_id') && !$request->filled('cart_id')) {
                 // Direct product checkout
                 $product = Product::with('shop')->findOrFail($request->product_id);
                 $products->push([
@@ -112,24 +146,34 @@ class StripeCheckoutController extends Controller
                     'quantity' => $item['quantity'],
                 ];
             }
+            // Build metadata - include product ids and (optionally) single offer info
+            $metadata = [
+                'user_id' => $user->id,
+                'type' => 'order_checkout',
+                'cart_id' => $request->cart_id ?? null,
+                'shop_id' => $request->shop_id ?? null,
+                'product_ids' => $products->pluck('product_id')->implode(','),
+                'shipping_address' => json_encode($request->address ?? []),
+            ];
 
-            // ✅ Step 4: Create Stripe Checkout Session
+            // If a single-offer checkout (offer_id present) add it to metadata
+            if ($request->filled('offer_id')) {
+                $metadata['offer_id'] = $request->offer_id;
+                // include offer_counter_id if present (first product in collection); safe because offer checkout only contains one product
+                $metadata['offer_counter_id'] = $products->first()['offer_counter_id'] ?? null;
+            }
+
+            // Create Stripe Checkout Session
             $session = Session::create([
                 'payment_method_types' => ['card'],
                 'mode' => 'payment',
                 'customer' => $customerId,
                 'line_items' => $lineItems,
-                'metadata' => [
-                    'user_id' => $user->id,
-                    'type' => 'order_checkout',
-                    'cart_id' => $request->cart_id ?? null,
-                    'shop_id' => $request->shop_id ?? null,
-                    'product_ids' => $products->pluck('product_id')->implode(','),
-                    'shipping_address' => json_encode($request->address ?? []),
-                ],
+                'metadata' => $metadata,
                 'success_url' => config('app.frontend_url') . '/order-success?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('app.frontend_url') . '/checkout-cancelled',
             ]);
+
 
             DB::commit();
 
@@ -151,7 +195,7 @@ class StripeCheckoutController extends Controller
     /**
      * Handle Stripe webhook events (when payment succeeds)
      */
-    public function handleStripeWebhook(Request $request)
+  public function handleStripeWebhook(Request $request)
     {
         $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
@@ -161,28 +205,68 @@ class StripeCheckoutController extends Controller
         try {
             $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
         } catch (\Exception $e) {
+            \Log::error('Stripe webhook signature verification failed: ' . $e->getMessage());
             return response('Invalid payload', 400);
         }
 
+        // Only handle completed checkout sessions
         if ($event->type === 'checkout.session.completed') {
             $session = $event->data->object;
-
-            $metadata = $session->metadata ?? [];
-            $userId = $metadata->user_id ?? null;
-            $cartId = $metadata->cart_id ?? null;
-            $productIds = collect(explode(',', $metadata->product_ids ?? ''))->filter();
+            $metadata = (array) ($session->metadata ?? []);
+            $userId = $metadata['user_id'] ?? null;
+            $cartId = $metadata['cart_id'] ?? null;
+            $productIds = collect(explode(',', $metadata['product_ids'] ?? ''))->filter();
 
             DB::beginTransaction();
             try {
-                // Create order record
                 $currency = Currency::where('status', 1)->value('code') ?? 'AED';
                 $subtotal = 0;
 
+                // Retrieve product models
                 $products = Product::whereIn('id', $productIds)->with('shop')->get();
-                foreach ($products as $product) {
-                    $subtotal += $product->price;
+
+                // If metadata has offer_id => single-offer checkout; compute price accordingly
+                $offerId = $metadata['offer_id'] ?? null;
+                $offerCounterId = $metadata['offer_counter_id'] ?? null;
+
+                // If offer_id exists, try to get the Offer and the final price
+                $offer = null;
+                $finalPricesByProductId = []; // product_id => price (float)
+
+                if ($offerId) {
+                    $offer = Offer::with('product')->find($offerId);
+                    if ($offer) {
+                        $offer->is_paid = 1;
+                        $offer->save();
+                        // Prefer the specific counter id from metadata if present
+                        if (!empty($offerCounterId)) {
+                            $counter = OfferCounter::find($offerCounterId);
+                        } else {
+                            // else pick latest counter
+                            $counter = OfferCounter::where('offer_id', $offer->id)
+                                ->orderByDesc('id')
+                                ->first();
+                        }
+
+                        $finalPrice = $counter ? floatval($counter->price) : floatval($offer->price);
+                        // map to the offer's product id
+                        $finalPricesByProductId[$offer->product_id] = $finalPrice;
+                    }
                 }
 
+                // If no offer-based override, use product->price
+                foreach ($products as $product) {
+                    if (!isset($finalPricesByProductId[$product->id])) {
+                        $finalPricesByProductId[$product->id] = floatval($product->price);
+                    }
+                }
+
+                // Sum subtotal using finalPrices
+                foreach ($finalPricesByProductId as $pid => $price) {
+                    $subtotal += $price;
+                }
+
+                // Create order
                 $order = Order::create([
                     'buyer_id' => $userId,
                     'buyer_type' => 'customer',
@@ -198,26 +282,39 @@ class StripeCheckoutController extends Controller
                 $order->order_number = 10000 + $order->id;
                 $order->save();
 
+                // Create OrderProducts using finalPricesByProductId mapping
                 foreach ($products as $product) {
+                    $priceToUse = $finalPricesByProductId[$product->id] ?? floatval($product->price);
                     OrderProduct::create([
                         'order_id' => $order->id,
                         'seller_id' => $product->user_id,
                         'buyer_id' => $userId,
                         'buyer_type' => 'customer',
                         'product_id' => $product->id,
-                        'product_title' => $product->name,
-                        'product_slug' => Str::slug($product->name),
-                        'product_unit_price' => $product->price,
+                        'product_title' => $product->slug ?? ($product->details()->first()->title ?? 'Product'),
+                        'product_slug' => Str::slug($product->slug ?? ($product->details()->first()->title ?? 'product')),
+                        'product_unit_price' => $priceToUse,
                         'product_quantity' => 1,
                         'product_currency' => $currency,
-                        'product_total_price' => $product->price,
+                        'product_total_price' => $priceToUse,
                         'product_type' => 'physical',
                         'order_status' => 'paid',
+                        // optional: store associated offer info for traceability
+                        'meta' => json_encode([
+                            'offer_id' => $offerId ?? null,
+                            'offer_counter_id' => $offerCounterId ?? null,
+                            'stripe_session_id' => $session->id ?? null,
+                        ]),
                     ]);
                 }
 
-                // ✅ Save Shipping Address (if provided)
-                if (!empty($address)) {
+                // Save shipping address if provided
+                $address = [];
+                if (!empty($metadata['shipping_address'])) {
+                    $address = json_decode($metadata['shipping_address'], true);
+                }
+
+                if (!empty($address) && is_array($address)) {
                     ShippingAddress::create([
                         'user_id' => $userId,
                         'title' => ($address['first_name'] ?? '') . ' ' . ($address['last_name'] ?? ''),
@@ -234,7 +331,7 @@ class StripeCheckoutController extends Controller
                     ]);
                 }
 
-                // ✅ Remove checked-out items from cart
+                // Remove checked-out items from cart if provided
                 if ($cartId) {
                     $cart = Cart::where('cart_id', $cartId)->first();
                     if ($cart && !empty($cart->products_data)) {
@@ -246,10 +343,13 @@ class StripeCheckoutController extends Controller
                 }
 
                 DB::commit();
-                \Log::info('✅ Stripe order created successfully for session: ' . $session->id);
+                \Log::info('✅ Stripe order created successfully for session: ' . ($session->id ?? 'unknown'));
             } catch (\Exception $e) {
                 DB::rollBack();
-                \Log::error('❌ Stripe order creation failed: ' . $e->getMessage());
+                \Log::error('❌ Stripe order creation failed: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'session' => $session ?? null
+                ]);
             }
         }
 

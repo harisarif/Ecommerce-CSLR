@@ -19,13 +19,15 @@ class Offer extends Model
         'responded_at',
         'buyer_read',
         'seller_read',
-        'expires_at'
+        'expires_at',
+        'is_paid'
     ];
 
     protected $casts = [
         'buyer_read' => 'boolean',
         'seller_read' => 'boolean',
         'responded_at' => 'datetime',
+        'is_paid' => 'boolean',
     ];
 
     protected $appends = ['is_expired'];

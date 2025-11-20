@@ -145,6 +145,7 @@ class InboxController extends Controller
                 'data' => [
 
                     'offer_id'   => $offer->id,
+                    'is_paid'    => $offer->is_paid, 
                     'type' => $latestCounter ? $latestCounter->type : 'offer',
                     'price'      => $latestCounter ? $latestCounter->price : $offer->price,
                     'message'    => $latestCounter ? $latestCounter->message : $offer->message,
@@ -212,6 +213,7 @@ class InboxController extends Controller
 
                     return [
                         'offer_id'      => $offer->id,
+                        'is_paid'    => $offer->is_paid, 
                         'type'          => $latestCounter ? 'counter_offer' : 'offer',
                         'price'         => $latestCounter ? $latestCounter->price : $offer->price,
                         'message'       => $latestCounter ? $latestCounter->message : $offer->message,
