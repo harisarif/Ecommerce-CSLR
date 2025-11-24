@@ -188,6 +188,7 @@ class User extends Authenticatable implements JWTSubject
      */
     protected $appends = [
         'full_name',
+        'avatar_url'
     ];
 
     /**
@@ -206,6 +207,16 @@ class User extends Authenticatable implements JWTSubject
     public function getSocialMediaDataAttribute($value)
     {
         return $value ? json_decode($value, true) : [];
+    }
+
+
+    public function getAvatarUrlAttribute()
+    {
+        if (!$this->avatar) {
+            return null;
+        }
+
+        return url('uploads/avatars/' . $this->avatar);
     }
 
     /**

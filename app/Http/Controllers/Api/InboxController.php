@@ -188,10 +188,6 @@ class InboxController extends Controller
 
             $offers = Offer::where('product_id', $data['product_id'])
                 ->where('seller_id', $user->id)
-                ->where(function ($q) {
-                    $q->whereNull('expires_at')
-                        ->orWhere('expires_at', '>', now());
-                })
                 ->with([
                     'buyer:id,username,avatar',
                     'seller:id,username,avatar',
