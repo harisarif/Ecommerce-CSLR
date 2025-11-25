@@ -151,13 +151,9 @@ class StripeCheckoutController extends Controller
                 'shop_id' => (string) ($products->first()['shop_id'] ?? ''),
                 'product_ids' => $products->pluck('product_id')->implode(','),
                 'shipping_address' => json_encode($request->address ?? []),
+                'offer_id' => $request->filled('offer_id') ? (string) $request->offer_id : '',
+                'offer_counter_id' => $request->filled('offer_id') ? (string) ($products->first()['offer_counter_id'] ?? '') : '',
             ];
-
-            // If a single-offer checkout (offer_id present) add it to metadata
-            if ($request->filled('offer_id')) {
-                $metadata['offer_id'] = (string) $request->offer_id;
-                $metadata['offer_counter_id'] = (string) ($products->first()['offer_counter_id'] ?? '');
-            }
 
             // Create Stripe Checkout Session
             $session = Session::create([
@@ -169,7 +165,7 @@ class StripeCheckoutController extends Controller
                 'success_url' => config('app.frontend_url') . '/order-success?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('app.frontend_url') . '/checkout-cancelled',
             ]);
-
+           \Log::info('Stripe session metadatassss', ['metadata' => $session->metadata]);
 
             DB::commit();
 
@@ -210,6 +206,10 @@ class StripeCheckoutController extends Controller
         if ($event->type === 'checkout.session.completed') {
 
             $session = $event->data->object;
+            \Log::info('Webhook metadata', [
+                'raw_session' => $session,
+                'metadata' => $session->metadata,
+            ]);
             $metadata = (array) ($session->metadata ?? []);
             $userId = $metadata['user_id'] ?? null;
             $cartId = $metadata['cart_id'] ?? null;
