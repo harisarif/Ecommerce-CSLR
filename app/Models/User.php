@@ -73,7 +73,8 @@ class User extends Authenticatable implements JWTSubject
         'account_delete_req',
         'account_delete_req_date',
         'dob',
-        'billing_address'
+        'billing_address',
+        'fcm_token',
     ];
 
 

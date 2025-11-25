@@ -82,6 +82,10 @@ class AuthController extends Controller
 
     public function emailLoginVerify(Request $request)
     {
+        $request->validate([
+            'fcm_token' => 'nullable|string', // <-- accept token from app
+        ]);
+
         $token = $request->query('token');
         $record = EmailLoginToken::where('token', $token)->first();
 
@@ -92,6 +96,11 @@ class AuthController extends Controller
         $user = User::where('email', $record->email)->first();
 
         if ($user) {
+            // Save/update FCM token
+            if ($request->filled('fcm_token')) {
+                $user->fcm_token = $request->fcm_token;
+                $user->save();
+            }
             $apiToken = JWTAuth::fromUser($user);
             $record->delete();
 
@@ -148,6 +157,7 @@ class AuthController extends Controller
             'dob'             => 'required|date',
             'username'        => 'required|string|max:255|unique:users',
             'billing_address' => 'required|string',
+            'fcm_token'       => 'nullable|string',
             'sizes'           => 'array',
             'sizes.*.category_id' => 'required_with:sizes|exists:categories,id',
             'sizes.*.size_id'     => 'required_with:sizes|exists:sizes,id',
@@ -165,6 +175,7 @@ class AuthController extends Controller
             'username'        => $request->username,
             'billing_address' => $request->billing_address,
             'role_id'         => 2, // default role
+            'fcm_token'       => $request->fcm_token ?? null,
         ]);
 
 
