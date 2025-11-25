@@ -165,7 +165,6 @@ class StripeCheckoutController extends Controller
                 'success_url' => config('app.frontend_url') . '/order-success?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('app.frontend_url') . '/checkout-cancelled',
             ]);
-           \Log::info('Stripe session metadatassss', ['metadata' => $session->metadata]);
 
             DB::commit();
 
@@ -206,10 +205,6 @@ class StripeCheckoutController extends Controller
         if ($event->type === 'checkout.session.completed') {
 
             $session = $event->data->object;
-            \Log::info('Webhook metadata', [
-                'raw_session' => $session,
-                'metadata' => $session->metadata,
-            ]);
             $metadata = $session->metadata;
             $userId = $metadata['user_id'] ?? null;
             $offerId = $metadata['offer_id'] ?? null;
@@ -231,39 +226,19 @@ class StripeCheckoutController extends Controller
                 $offer = null;
                 $finalPricesByProductId = []; // product_id => price (float)
 
-                \Log::info("🔍 Webhook Offer Processing Started", [
-                    'offer_id' => $offerId,
-                    'offer_counter_id' => $offerCounterId,
-                ]);
-
                 if ($offerId) {
                     $offer = Offer::with('product')->find($offerId);
                     if ($offer) {
-                        \Log::info("🔍 Offer Found Before Update", [
-                            'offer_id' => $offer->id,
-                            'is_paid_before' => $offer->is_paid,
-                        ]);
                         $offer->is_paid = 1;
                         $offer->save();
-                          \Log::info("✅ Offer Updated Successfully", [
-                            'offer_id' => $offer->id,
-                            'is_paid_after' => $offer->is_paid
-                        ]);
                         // Prefer the specific counter id from metadata if present
                         if (!empty($offerCounterId)) {
                             $counter = OfferCounter::find($offerCounterId);
-                                \Log::info("🔍 OfferCounter", [
-            'counter_id' => $offerCounterId,
-            'counter_price' => $counter->price ?? null,
-        ]);
                         } else {
                             // else pick latest counter
                             $counter = OfferCounter::where('offer_id', $offer->id)
                                 ->orderByDesc('id')
                                 ->first();
-                                    \Log::error("❌ Offer Not Found", [
-        'offer_id' => $offerId
-    ]);
                         }
 
                         $finalPrice = $counter ? floatval($counter->price) : floatval($offer->price);
