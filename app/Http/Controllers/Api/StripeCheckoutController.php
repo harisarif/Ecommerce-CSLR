@@ -149,8 +149,8 @@ class StripeCheckoutController extends Controller
                 'type' => 'order_checkout',
                 'cart_id' => (string) ($request->cart_id ?? ''),
                 'shop_id' => (string) ($products->first()['shop_id'] ?? ''),
-                'product_ids' => $products->pluck('product_id')->implode(','),
-                'shipping_address' => json_encode($request->address ?? []),
+                'product_ids' => $products->pluck('product_id')->implode(','), // CSV string
+                'shipping_address' => $request->address ? json_encode($request->address, JSON_UNESCAPED_SLASHES) : '',
                 'offer_id' => $request->filled('offer_id') ? (string) $request->offer_id : '',
                 'offer_counter_id' => $request->filled('offer_id') ? (string) ($products->first()['offer_counter_id'] ?? '') : '',
             ];
@@ -210,8 +210,9 @@ class StripeCheckoutController extends Controller
                 'raw_session' => $session,
                 'metadata' => $session->metadata,
             ]);
-            $metadata = (array) ($session->metadata ?? []);
+            $metadata = $session->metadata;
             $userId = $metadata['user_id'] ?? null;
+            $offerId = $metadata['offer_id'] ?? null;
             $cartId = $metadata['cart_id'] ?? null;
             $productIds = collect(explode(',', $metadata['product_ids'] ?? ''))->filter();
 
@@ -224,7 +225,6 @@ class StripeCheckoutController extends Controller
                 $products = Product::whereIn('id', $productIds)->with('shop')->get();
 
                 // If metadata has offer_id => single-offer checkout; compute price accordingly
-                $offerId = $metadata['offer_id'] ?? null;
                 $offerCounterId = $metadata['offer_counter_id'] ?? null;
 
                 // If offer_id exists, try to get the Offer and the final price
