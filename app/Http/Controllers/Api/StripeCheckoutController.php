@@ -196,6 +196,7 @@ class StripeCheckoutController extends Controller
      */
   public function handleStripeWebhook(Request $request)
     {
+        
         $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
         $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
@@ -210,6 +211,8 @@ class StripeCheckoutController extends Controller
 
         // Only handle completed checkout sessions
         if ($event->type === 'checkout.session.completed') {
+            \Log::info("🔍 Stripe Metadata Received", $event->data->object->metadata);
+
             $session = $event->data->object;
             $metadata = (array) ($session->metadata ?? []);
             $userId = $metadata['user_id'] ?? null;
