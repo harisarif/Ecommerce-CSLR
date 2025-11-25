@@ -211,7 +211,6 @@ class StripeCheckoutController extends Controller
 
         // Only handle completed checkout sessions
         if ($event->type === 'checkout.session.completed') {
-            \Log::info("🔍 Stripe Metadata Received", $event->data->object->metadata);
 
             $session = $event->data->object;
             $metadata = (array) ($session->metadata ?? []);
