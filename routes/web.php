@@ -141,7 +141,7 @@ Route::get('/offers-table', function () {
             <tr>
                 <td>'.$offer->id.'</td>
                 <td>'.($offer->product->slug ?? 'N/A').'</td>
-                <td>'.($offer->seller->name ?? 'N/A').'</td>
+                <td>'.($offer->seller->username ?? 'N/A').'</td>
                 <td>'.number_format($offer->price, 2).'</td>
                 <td>' . ($offer->is_paid
                     ? '<span class="badge paid">PAID</span>'
