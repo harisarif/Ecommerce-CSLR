@@ -148,19 +148,18 @@ class StripeCheckoutController extends Controller
             }
             // Build metadata - include product ids and (optionally) single offer info
             $metadata = [
-                'user_id' => $user->id,
+                'user_id' => (string) $user->id,
                 'type' => 'order_checkout',
-                'cart_id' => $request->cart_id ?? null,
-                'shop_id' => $request->shop_id ?? null,
+                'cart_id' => (string) ($request->cart_id ?? ''),
+                'shop_id' => (string) ($request->shop_id ?? ''),
                 'product_ids' => $products->pluck('product_id')->implode(','),
                 'shipping_address' => json_encode($request->address ?? []),
             ];
 
             // If a single-offer checkout (offer_id present) add it to metadata
             if ($request->filled('offer_id')) {
-                $metadata['offer_id'] = $request->offer_id;
-                // include offer_counter_id if present (first product in collection); safe because offer checkout only contains one product
-                $metadata['offer_counter_id'] = $products->first()['offer_counter_id'] ?? null;
+                $metadata['offer_id'] = (string) $request->offer_id;
+                $metadata['offer_counter_id'] = (string) ($products->first()['offer_counter_id'] ?? '');
             }
 
             // Create Stripe Checkout Session
