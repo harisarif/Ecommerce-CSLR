@@ -60,16 +60,17 @@ class StripeCheckoutController extends Controller
             $products = collect();
             $currency = Currency::where('status', 1)->value('code') ?? 'AED';
 
-           if ($request->filled('offer_id')) {
-                // Offer checkout must be for a single product
-                $offer = Offer::with('product')->findOrFail($request->offer_id);
+            if ($request->filled('offer_id')) {
 
-                // if product_id passed, validate match
-                if ($request->filled('product_id') && $request->product_id != $offer->product_id) {
-                    return response()->json(['message' => 'The provided product_id does not match the offer\'s product.'], 422);
+                // Auto-load offer + product
+                $offer = Offer::with('product')->findOrFail($request->offer_id);
+                $product = $offer->product;
+
+                if (!$product) {
+                    return response()->json(['message' => 'Offer product not found'], 404);
                 }
 
-                // Get latest counter or offer entry (offer_counters stores history)
+                // Auto-get latest counter OR base offer
                 $latestCounter = OfferCounter::where('offer_id', $offer->id)
                     ->orderByDesc('id')
                     ->first();
@@ -77,22 +78,18 @@ class StripeCheckoutController extends Controller
                 $price = $latestCounter ? $latestCounter->price : $offer->price;
                 $counterId = $latestCounter ? $latestCounter->id : null;
 
-                $product = $offer->product;
-                if (!$product) {
-                    return response()->json(['message' => 'Offer product not found.'], 404);
-                }
-
+                // Build automatic product data (no need product_id/shop_id from request)
                 $products->push([
                     'product_id' => $product->id,
                     'name' => $product->slug ?? ($product->details()->first()->title ?? 'Product'),
                     'amount' => $price,
                     'quantity' => 1,
                     'shop_id' => $product->shop_id,
-                    // include offer metadata for later use
                     'offer_id' => $offer->id,
                     'offer_counter_id' => $counterId,
                 ]);
             }
+
             // direct product checkout (single product) without offer
             elseif ($request->filled('product_id') && !$request->filled('cart_id')) {
                 // Direct product checkout
@@ -151,7 +148,7 @@ class StripeCheckoutController extends Controller
                 'user_id' => (string) $user->id,
                 'type' => 'order_checkout',
                 'cart_id' => (string) ($request->cart_id ?? ''),
-                'shop_id' => (string) ($request->shop_id ?? ''),
+                'shop_id' => (string) ($products->first()['shop_id'] ?? ''),
                 'product_ids' => $products->pluck('product_id')->implode(','),
                 'shipping_address' => json_encode($request->address ?? []),
             ];
