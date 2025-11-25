@@ -32,6 +32,11 @@ class DiscoverController extends Controller
             ->get();
 
         $brands = Brand::withCount('products')->get();
+        $brands->prepend([
+            'id'    => 0,
+            'name'  => 'All Brands',
+            'products_count' => Product::count(), // TOTAL products
+        ]);
         $sizes  = Size::withCount('products')->get();
 
         $colorMap = collect(config('colors'))
@@ -129,8 +134,24 @@ class DiscoverController extends Controller
 
         // Brand filter
         if ($request->filled('brand_ids')) {
-            $query->whereIn('brand_id', (array) $request->brand_ids);
+
+            $brandIds = (array) $request->brand_ids;
+
+            // If frontend sends only 0 → show ALL brands (skip filter)
+            if (count($brandIds) == 1 && $brandIds[0] == 0) {
+                // do nothing → all brands included
+            } else {
+                // Remove 0 if mixed values come like [0, 3]
+                $brandIds = array_filter($brandIds, function ($id) {
+                    return $id != 0;
+                });
+
+                if (!empty($brandIds)) {
+                    $query->whereIn('brand_id', $brandIds);
+                }
+            }
         }
+
 
         // Sizes filter
         if ($request->filled('size_ids')) {
