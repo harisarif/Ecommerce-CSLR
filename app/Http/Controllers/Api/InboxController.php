@@ -139,6 +139,15 @@ class InboxController extends Controller
             // Latest counter (if any)
             $latestCounter = $offer->counters->first();
 
+            $maxCounters = config('app.counter_limit');
+
+            $buyerCounterCount = \App\Models\OfferCounter::where('offer_id', $offer->id)
+                ->where('sender_id', $offer->buyer_id)
+                ->where('type', 'counter_offer')
+                ->count();
+
+            $buyerCanCounter = $buyerCounterCount < $maxCounters;
+
             return response()->json([
                 'success' => true,
                 'type' => 'offer_detail',
@@ -151,6 +160,10 @@ class InboxController extends Controller
                     'price'      => $latestCounter ? $latestCounter->price : $offer->price,
                     'message'    => $latestCounter ? $latestCounter->message : $offer->message,
                     'created_at' => $latestCounter ? $latestCounter->created_at : $offer->created_at,
+
+                    'counter_limit' => $maxCounters,
+                    'buyer_counter_count' => $buyerCounterCount,
+                    'can_send_counter_offer' => $buyerCanCounter,
 
                     // Include full product
                     'product' => $offer->product,
@@ -216,6 +229,18 @@ class InboxController extends Controller
                         'price'         => $latestCounter ? $latestCounter->price : $offer->price,
                         'message'       => $latestCounter ? $latestCounter->message : $offer->message,
                         'created_at'    => $latestCounter ? $latestCounter->created_at : $offer->created_at,
+                        'counter_limit' => config('app.counter_limit'),
+
+                        'buyer_counter_count' => \App\Models\OfferCounter::where('offer_id', $offer->id)
+                            ->where('sender_id', $offer->buyer_id)
+                            ->where('type', 'counter_offer')
+                            ->count(),
+
+                        'can_send_counter_offer' =>
+                            \App\Models\OfferCounter::where('offer_id', $offer->id)
+                                ->where('sender_id', $offer->buyer_id)
+                                ->where('type', 'counter_offer')
+                                ->count() < config('app.counter_limit'),
                         'product' => $offer->product,
                         'buyer' => [
                             'id'       => $offer->buyer->id,
