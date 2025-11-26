@@ -18,18 +18,57 @@ class DiscoverController extends Controller
 {
     public function filters()
     {
-        $categories = AppCategory::select('id', 'slug', 'parent_id') // keep parent_id for relation
-            ->withCount('products') // add product count
-            ->where('parent_id', 0)
-            ->with(['children' => function ($q) {
-                $q->select('id', 'slug', 'parent_id')
-                    ->withCount('products')
-                    ->with(['children' => function ($q2) {
-                        $q2->select('id', 'slug', 'parent_id')
-                            ->withCount('products');
-                    }]);
-            }])
-            ->get();
+        // $categories = AppCategory::select('id', 'slug', 'parent_id') // keep parent_id for relation
+        //     ->withCount('products') // add product count
+        //     ->where('parent_id', 0)
+        //     ->with(['children' => function ($q) {
+        //         $q->select('id', 'slug', 'parent_id')
+        //             ->withCount('products')
+        //             ->with(['children' => function ($q2) {
+        //                 $q2->select('id', 'slug', 'parent_id')
+        //                     ->withCount('products');
+        //             }]);
+        //     }])
+        //     ->get();
+
+        $categories = AppCategory::select('id', 'slug', 'parent_id')
+    ->where('parent_id', 0)
+    ->with([
+        'children.children.children', // load deeper children
+        'children' => function ($q) {
+            $q->select('id', 'slug', 'parent_id')
+                ->with(['children' => function ($q2) {
+                    $q2->select('id', 'slug', 'parent_id')
+                        ->with('children');
+                }]);
+        }
+    ])
+    ->get()
+    ->map(function ($cat) {
+        return [
+            'id' => $cat->id,
+            'slug' => $cat->slug,
+            'parent_id' => $cat->parent_id,
+            'products_count' => $cat->total_products, // recursive total
+            'children' => $cat->children->map(function ($child) {
+                return [
+                    'id' => $child->id,
+                    'slug' => $child->slug,
+                    'parent_id' => $child->parent_id,
+                    'products_count' => $child->total_products, // recursive total
+                    'children' => $child->children->map(function ($sub) {
+                        return [
+                            'id' => $sub->id,
+                            'slug' => $sub->slug,
+                            'parent_id' => $sub->parent_id,
+                            'products_count' => $sub->total_products, // recursive total
+                        ];
+                    })
+                ];
+            })
+        ];
+    });
+
 
         $brands = Brand::withCount('products')->get();
         $brands->prepend([

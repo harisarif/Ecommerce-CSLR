@@ -70,4 +70,17 @@ class AppCategory extends Model
     {
         return $this->hasMany(Product::class, 'app_category_id');
     }
+
+    public function getTotalProductsAttribute()
+    {
+        // Count products of this category
+        $count = $this->products()->count();
+
+        // Recursively count products of children
+        foreach ($this->children as $child) {
+            $count += $child->total_products;
+        }
+
+        return $count;
+    }
 }
