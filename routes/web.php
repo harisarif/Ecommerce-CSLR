@@ -3,7 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Models\Offer;
-
+use Illuminate\Support\Str;
+use App\Models\User;
+use App\Models\Shop;
 
 Route::get('/', function () {
     return view('welcome');
@@ -166,3 +168,42 @@ Route::get('/logs', function () {
 
 //     return $html;
 // });
+
+
+Route::get('/fix-missing-shops', function () {
+
+    $usersWithoutShop = User::doesntHave('shop')->get();
+
+    $created = [];
+
+    foreach ($usersWithoutShop as $user) {
+
+        $shopName = $user->first_name . "'s Shop";
+        $slug = Str::slug($shopName);
+
+        if (Shop::where('slug', $slug)->exists()) {
+            $slug .= '-' . Str::random(5);
+        }
+
+        $shop = Shop::create([
+            'user_id'     => $user->id,
+            'name'        => $shopName,
+            'slug'        => $slug,
+            'description' => 'Welcome to ' . $shopName . '!',
+            'phone'       => null,
+            'address'     => $user->billing_address,
+            'settings'    => [],
+        ]);
+
+        $created[] = [
+            'user_id' => $user->id,
+            'shop_id' => $shop->id,
+            'created_shop' => $shopName
+        ];
+    }
+
+    return response()->json([
+        'total_fixed' => count($created),
+        'details' => $created,
+    ]);
+});
