@@ -43,13 +43,13 @@ class OfferController extends Controller
                 'message' => 'The offer expiry date cannot exceed 30 days from today.'
             ], 422);
         }
-        
+
         $product = Product::with('shop.user')->findOrFail($data['product_id']);
 
         if (!$product->shop) {
             return response()->json(['message' => 'Product does not belong to a shop'], 422);
         }
-        
+
         // 🔹 Prevent sending duplicate offers
         $existingOffer = Offer::where('product_id', $product->id)
             ->where('buyer_id', $user->id)
@@ -72,7 +72,6 @@ class OfferController extends Controller
                 ->get();
 
             $createdOffers = [];
-
             foreach ($recipientShops as $recipientShop) {
                 if ($recipientShop->user_id == $user->id) {
                     // Skip own shop
@@ -87,6 +86,7 @@ class OfferController extends Controller
                     'message' => $data['message'] ?? null,
                     'status' => 'pending',
                     'expires_at' => $requestedExpiry,
+                    'is_owner_offer' => true,
                 ]);
 
                 // ✅ Log to offer_counters
@@ -173,6 +173,7 @@ class OfferController extends Controller
                 'message' => $data['message'] ?? null,
                 'status' => 'pending',
                 'expires_at' => $requestedExpiry,
+                'is_owner_offer' => false,
             ]);
             // ✅ Log entry in offer_counters
             OfferCounter::create([
@@ -250,9 +251,9 @@ class OfferController extends Controller
         $user = $request->user();
 
         $offers = Offer::where('seller_id', $user->id)
-                ->where(function ($q) {
+            ->where(function ($q) {
                 $q->whereNull('expires_at')
-                ->orWhere('expires_at', '>', now());
+                    ->orWhere('expires_at', '>', now());
             })
             ->with(['product', 'buyer:id,username,avatar'])
             ->orderByDesc('id')
@@ -304,6 +305,49 @@ class OfferController extends Controller
     }
 
 
+    public function receivedMultiple(Request $request)
+    {
+        $user = $request->user();
+
+        $offers = Offer::where('buyer_id', $user->id)
+            ->where('is_owner_offer', true)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->with(['product', 'seller:id,username,avatar'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('product_id')
+            ->map(function (Collection $productOffers) {
+                $product = $productOffers->first()->product;
+                $latest  = $productOffers->sortByDesc('id')->first();
+
+                return [
+                    'product_id' => $product->id,
+                    'product_slug' => $product->slug,
+                    'product_image' => $product->main_image,
+                    'offers_count' => $productOffers->count(),
+                    'latest_offer' => [
+                        'id'         => $latest->id,
+                        'price'      => $latest->price,
+                        'message'    => $latest->message,
+                        'status'     => $latest->status,
+                        'created_at' => $latest->created_at,
+                        'seller'      => [
+                            'id'       => $latest->seller->id,
+                            'username' => $latest->seller->username,
+                            'avatar'   => $latest->seller->avatar,
+                        ],
+                    ],
+                ];
+            })->values();
+
+        return $this->paginate($request, $offers);
+    }
+
+
+
     public function sent(Request $request)
     {
         $user = $request->user();
@@ -311,7 +355,7 @@ class OfferController extends Controller
         $offers = Offer::where('buyer_id', $user->id)
             ->where(function ($q) {
                 $q->whereNull('expires_at')
-                ->orWhere('expires_at', '>', now());
+                    ->orWhere('expires_at', '>', now());
             })
             ->with(['product', 'seller:id,username,avatar'])
             ->orderByDesc('id')
@@ -355,6 +399,49 @@ class OfferController extends Controller
 
         return response()->json(['success' => true, 'data' => $paginated]);
     }
+
+
+    public function sentMultiple(Request $request)
+    {
+        $user = $request->user();
+
+        $offers = Offer::where('seller_id', $user->id)
+            ->where('is_owner_offer', true)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->with(['product', 'buyer:id,username,avatar'])
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('product_id')
+            ->map(function (Collection $productOffers) {
+                $product = $productOffers->first()->product;
+                $latest  = $productOffers->sortByDesc('id')->first();
+
+                return [
+                    'product_id' => $product->id,
+                    'product_slug' => $product->slug,
+                    'product_image' => $product->main_image,
+                    'offers_count' => $productOffers->count(),
+                    'latest_offer' => [
+                        'id'         => $latest->id,
+                        'price'      => $latest->price,
+                        'message'    => $latest->message,
+                        'status'     => $latest->status,
+                        'created_at' => $latest->created_at,
+                        'buyer'      => [
+                            'id'       => $latest->buyer->id,
+                            'username' => $latest->buyer->username,
+                            'avatar'   => $latest->buyer->avatar,
+                        ],
+                    ],
+                ];
+            })->values();
+
+        return $this->paginate($request, $offers);
+    }
+
 
 
     // accept/reject offer
@@ -507,7 +594,7 @@ class OfferController extends Controller
         // ]);
 
         // ✅ Notify recipient
-  
+
         if ($recipient) {
             Notification::create([
                 'type' => 'counter_offer',
@@ -543,27 +630,27 @@ class OfferController extends Controller
 
         return response()->json([
             'message' => 'Counter offer sent successfully',
-                'offer' => [
-                    'id' => $offer->id,
-                    'product_id' => $offer->product_id,
-                    'buyer_id' => $offer->buyer_id,
-                    'seller_id' => $offer->seller_id,
-                    
-                    // ❗ show updated counter price but NOT saving in DB
-                    'price' => $newCounter->price,
+            'offer' => [
+                'id' => $offer->id,
+                'product_id' => $offer->product_id,
+                'buyer_id' => $offer->buyer_id,
+                'seller_id' => $offer->seller_id,
 
-                    // ❗ show type based on counter offer
-                    'type' => 'counter_offer',
+                // ❗ show updated counter price but NOT saving in DB
+                'price' => $newCounter->price,
 
-                    'message' => $newCounter->message,
-                    'status' => $offer->status,
-                    'expires_at' => $offer->expires_at,
-                    'responded_at' => $offer->responded_at,
-                    'created_at' => $offer->created_at,
-                    'updated_at' => $offer->updated_at,
+                // ❗ show type based on counter offer
+                'type' => 'counter_offer',
 
-                     'product' => $offer->product,
-                ],
+                'message' => $newCounter->message,
+                'status' => $offer->status,
+                'expires_at' => $offer->expires_at,
+                'responded_at' => $offer->responded_at,
+                'created_at' => $offer->created_at,
+                'updated_at' => $offer->updated_at,
+
+                'product' => $offer->product,
+            ],
         ]);
     }
 
@@ -671,5 +758,20 @@ class OfferController extends Controller
 
     //     return response()->json($offers);
     // }
+    private function paginate(Request $request, Collection $items)
+    {
+        $page = (int) $request->query('page', 1);
+        $perPage = (int) $request->query('per_page', 20);
+        $offset = ($page - 1) * $perPage;
 
+        $paginated = new LengthAwarePaginator(
+            $items->slice($offset, $perPage)->values(),
+            $items->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return response()->json(['success' => true, 'data' => $paginated]);
+    }
 }

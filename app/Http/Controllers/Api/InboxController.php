@@ -12,6 +12,7 @@ use App\Helpers\MessageTypeHelper;
 use App\Models\User;
 use App\Notifications\OfferNotification;
 use App\Models\Notification;
+use App\Models\Product;
 
 class InboxController extends Controller
 {
@@ -199,65 +200,64 @@ class InboxController extends Controller
 
         // 🟢 Product-based: show latest offers from *all buyers* on my product
         if (!empty($data['product_id'])) {
+            $product = Product::find($data['product_id']);
+            if (!$product) {
+                return response()->json(['success' => false, 'message' => 'Product not found'], 404);
+            }
 
-            $offers = Offer::where('product_id', $data['product_id'])
-                ->where('seller_id', $user->id)
-                ->with([
-                    'buyer:id,username,avatar',
-                    'seller:id,username,avatar',
-                    'product',
-                    'counters' => function ($q) {
-                        $q->orderByDesc('id');
-                    }
-                ])
-                ->orderByDesc('id')
-                ->get()
-                ->groupBy('buyer_id')
-                ->map(function ($buyerOffers) {
+            // Determine if user is the owner of the product
+            $isOwner = $product->shop && $product->shop->user_id == $user->id;
 
-                    // Get the latest offer row
-                    $offer = $buyerOffers->sortByDesc('id')->first();
+            $offersQuery = Offer::where('product_id', $data['product_id'])
+                ->with(['buyer:id,username,avatar', 'seller:id,username,avatar', 'counters' => fn($q) => $q->orderByDesc('id')])
+                ->orderByDesc('id');
 
-                    // Get its latest counter
+            if ($isOwner) {
+                // User is product owner → show only offers sent to other shops
+                $offersQuery->where('seller_id', $user->id)
+                            ->where('is_owner_offer', true);
+            } else {
+                // User is not owner → show only offers received from product owner
+                $offersQuery->where('buyer_id', $user->id)
+                            ->where('is_owner_offer', true);
+            }
+
+            $offers = $offersQuery->get()
+                ->groupBy($isOwner ? 'buyer_id' : 'seller_id')
+                ->map(function ($groupedOffers) {
+                    $offer = $groupedOffers->sortByDesc('id')->first();
                     $latestCounter = $offer->counters->sortByDesc('id')->first();
 
                     return [
                         'offer_id'      => $offer->id,
-                        'is_paid'    => $offer->is_paid, 
-                        'status'     => $offer->status,
+                        'is_paid'       => $offer->is_paid,
+                        'status'        => $offer->status,
                         'type'          => $latestCounter ? 'counter_offer' : 'offer',
                         'price'         => $latestCounter ? $latestCounter->price : $offer->price,
                         'message'       => $latestCounter ? $latestCounter->message : $offer->message,
                         'created_at'    => $latestCounter ? $latestCounter->created_at : $offer->created_at,
                         'counter_limit' => config('app.counter_limit'),
-
                         'buyer_counter_count' => \App\Models\OfferCounter::where('offer_id', $offer->id)
                             ->where('sender_id', $offer->buyer_id)
                             ->where('type', 'counter_offer')
                             ->count(),
-
-                        'can_send_counter_offer' =>
-                            \App\Models\OfferCounter::where('offer_id', $offer->id)
-                                ->where('sender_id', $offer->buyer_id)
-                                ->where('type', 'counter_offer')
-                                ->count() < config('app.counter_limit'),
+                        'can_send_counter_offer' => \App\Models\OfferCounter::where('offer_id', $offer->id)
+                            ->where('sender_id', $offer->buyer_id)
+                            ->where('type', 'counter_offer')
+                            ->count() < config('app.counter_limit'),
                         'product' => $offer->product,
-                        'buyer' => [
-                            'id'       => $offer->buyer->id,
+                        'buyer'   => [
+                            'id' => $offer->buyer->id,
                             'username' => $offer->buyer->username,
-                            'avatar'   => $offer->buyer->avatar,
+                            'avatar' => $offer->buyer->avatar,
                         ],
-
-                        'seller' => [
-                            'id'       => $offer->seller->id,
+                        'seller'  => [
+                            'id' => $offer->seller->id,
                             'username' => $offer->seller->username,
-                            'avatar'   => $offer->seller->avatar,
+                            'avatar' => $offer->seller->avatar,
                         ],
-
                     ];
-                })
-
-                ->values();
+                })->values();
 
             return response()->json([
                 'success' => true,
@@ -265,6 +265,7 @@ class InboxController extends Controller
                 'data' => $offers
             ]);
         }
+
 
 
         // 🟡 Simple chat messages (non-offer)

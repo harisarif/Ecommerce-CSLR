@@ -91,7 +91,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/cancel', [OrderController::class, 'cancelOrder']);
         });
 
-
         // Shops
         Route::prefix('shop')->group(function () {
             Route::post('/create', [ShopController::class, 'store']);
@@ -115,6 +114,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/received', [OfferController::class, 'received']);
             Route::put('/{id}', [OfferController::class, 'update']);
             Route::post('/{id}/counter', [OfferController::class, 'counterOffer']);
+            Route::get('/sent-multiple', [OfferController::class, 'sentMultiple']);
+            Route::get('/received-multiple', [OfferController::class, 'receivedMultiple']);
         });   
 
         // Inbox
