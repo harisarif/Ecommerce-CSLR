@@ -251,10 +251,11 @@ class OfferController extends Controller
         $user = $request->user();
 
         $offers = Offer::where('seller_id', $user->id)
-            ->where(function ($q) {
-                $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
+            ->where('is_owner_offer', false)
+            // ->where(function ($q) {
+            //     $q->whereNull('expires_at')
+            //         ->orWhere('expires_at', '>', now());
+            // })
             ->with(['product', 'buyer:id,username,avatar'])
             ->orderByDesc('id')
             ->get()
