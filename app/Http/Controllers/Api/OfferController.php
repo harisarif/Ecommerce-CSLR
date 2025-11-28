@@ -311,10 +311,7 @@ class OfferController extends Controller
 
         $offers = Offer::where('buyer_id', $user->id)
             ->where('is_owner_offer', true)
-            ->where(function ($q) {
-                $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
+
             ->with(['product', 'seller:id,username,avatar'])
             ->orderByDesc('id')
             ->get()
@@ -353,10 +350,10 @@ class OfferController extends Controller
         $user = $request->user();
 
         $offers = Offer::where('buyer_id', $user->id)
-            ->where(function ($q) {
-                $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
+            // ->where(function ($q) {
+            //     $q->whereNull('expires_at')
+            //         ->orWhere('expires_at', '>', now());
+            // })
             ->with(['product', 'seller:id,username,avatar'])
             ->orderByDesc('id')
             ->get()

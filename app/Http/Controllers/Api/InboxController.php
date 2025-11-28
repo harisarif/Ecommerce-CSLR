@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Notifications\OfferNotification;
 use App\Models\Notification;
 use App\Models\Product;
+use App\Models\Shop;
 
 class InboxController extends Controller
 {
@@ -222,42 +223,66 @@ class InboxController extends Controller
                             ->where('is_owner_offer', true);
             }
 
-            $offers = $offersQuery->get()
-                ->groupBy($isOwner ? 'buyer_id' : 'seller_id')
-                ->map(function ($groupedOffers) {
-                    $offer = $groupedOffers->sortByDesc('id')->first();
-                    $latestCounter = $offer->counters->sortByDesc('id')->first();
+           $offers = $offersQuery->get()
+            ->groupBy($isOwner ? 'buyer_id' : 'seller_id')
+            ->map(function ($groupedOffers) use ($isOwner) {
+                $offer = $groupedOffers->sortByDesc('id')->first();
+                $latestCounter = $offer->counters->sortByDesc('id')->first();
 
-                    return [
-                        'offer_id'      => $offer->id,
-                        'is_paid'       => $offer->is_paid,
-                        'status'        => $offer->status,
-                        'type'          => $latestCounter ? 'counter_offer' : 'offer',
-                        'price'         => $latestCounter ? $latestCounter->price : $offer->price,
-                        'message'       => $latestCounter ? $latestCounter->message : $offer->message,
-                        'created_at'    => $latestCounter ? $latestCounter->created_at : $offer->created_at,
-                        'counter_limit' => config('app.counter_limit'),
-                        'buyer_counter_count' => \App\Models\OfferCounter::where('offer_id', $offer->id)
-                            ->where('sender_id', $offer->buyer_id)
-                            ->where('type', 'counter_offer')
-                            ->count(),
-                        'can_send_counter_offer' => \App\Models\OfferCounter::where('offer_id', $offer->id)
+                // fetch buyer shop info (for owner sent offers)
+                $buyerShop = null;
+                if ($isOwner) {
+                    $buyerShop = Shop::where('user_id', $offer->buyer_id)
+                                    ->select('id', 'name', 'image')
+                                    ->first();
+                }
+
+                return [
+                    'offer_id'      => $offer->id,
+                    'is_paid'       => $offer->is_paid,
+                    'status'        => $offer->status,
+                    'type' => $latestCounter ? $latestCounter->type : 'offer',
+                    'price'         => $latestCounter ? $latestCounter->price : $offer->price,
+                    'message'       => $latestCounter ? $latestCounter->message : $offer->message,
+                    'created_at'    => $latestCounter ? $latestCounter->created_at : $offer->created_at,
+
+                    'counter_limit' => config('app.counter_limit'),
+                    'buyer_counter_count' => \App\Models\OfferCounter::where('offer_id', $offer->id)
+                        ->where('sender_id', $offer->buyer_id)
+                        ->where('type', 'counter_offer')
+                        ->count(),
+
+                    'can_send_counter_offer' => 
+                        \App\Models\OfferCounter::where('offer_id', $offer->id)
                             ->where('sender_id', $offer->buyer_id)
                             ->where('type', 'counter_offer')
                             ->count() < config('app.counter_limit'),
-                        'product' => $offer->product,
-                        'buyer'   => [
-                            'id' => $offer->buyer->id,
-                            'username' => $offer->buyer->username,
-                            'avatar' => $offer->buyer->avatar,
-                        ],
-                        'seller'  => [
-                            'id' => $offer->seller->id,
-                            'username' => $offer->seller->username,
-                            'avatar' => $offer->seller->avatar,
-                        ],
-                    ];
-                })->values();
+
+                    'product' => $offer->product,
+
+                    // buyer (shop receiving my offer)
+                    'buyer' => [
+                        'id'       => $offer->buyer->id,
+                        'username' => $offer->buyer->username,
+                        'avatar'   => $offer->buyer->avatar,
+                    ],
+
+                    // 🟢 ADD THIS: Buyer shop details (only for sent offers from owner)
+                    'buyer_shop' => $isOwner && $buyerShop ? [
+                        'id'   => $buyerShop->id,
+                        'name' => $buyerShop->name,
+                        'logo' => $buyerShop->logo,
+                    ] : null,
+
+                    'seller'  => [
+                        'id' => $offer->seller->id,
+                        'username' => $offer->seller->username,
+                        'avatar' => $offer->seller->avatar,
+                    ],
+                ];
+            })
+            ->values();
+
 
             return response()->json([
                 'success' => true,
