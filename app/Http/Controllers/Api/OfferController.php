@@ -355,6 +355,7 @@ class OfferController extends Controller
             //     $q->whereNull('expires_at')
             //         ->orWhere('expires_at', '>', now());
             // })
+            ->where('is_owner_offer', false)   
             ->with(['product', 'seller:id,username,avatar'])
             ->orderByDesc('id')
             ->get()
