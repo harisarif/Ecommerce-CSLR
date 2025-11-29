@@ -150,7 +150,44 @@ class InboxController extends Controller
                 ->count();
 
             $buyerCanCounter = $buyerCounterCount < $maxCounters;
+            
+            // Build full history timeline
+            $history = collect();
 
+            // 1️⃣ Add original offer
+            $history->push([
+                'type'        => 'offer',
+                'sender_id'   => $offer->buyer_id,
+                'recipient_id'=> $offer->seller_id,
+                'price'       => $offer->price,
+                'message'     => $offer->message,
+                'status'      => $offer->status,
+                'created_at'  => $offer->created_at,
+            ]);
+
+            // 2️⃣ Add all counters (but sorted oldest → newest)
+            foreach ($offer->counters()->orderBy('id')->get() as $c) {
+                $history->push([
+                    'type'        => $c->type,   // counter_offer | counter_accept | counter_reject
+                    'sender_id'   => $c->sender_id,
+                    'recipient_id'=> $c->recipient_id,
+                    'price'       => $c->price,
+                    'message'     => $c->message,
+                    'created_at'  => $c->created_at,
+                ]);
+            }
+
+            // 3️⃣ Add final status update (only if accepted/rejected/paid)
+            if (in_array($offer->status, ['accepted', 'rejected', 'paid'])) {
+                $history->push([
+                    'type'        => 'status_update',
+                    'status'      => $offer->status,
+                    'created_at'  => $offer->updated_at,
+                ]);
+            }
+
+            // 4️⃣ Sort entire history by datetime (ASCENDING)
+            $history = $history->sortBy('created_at')->values();
             return response()->json([
                 'success' => true,
                 'type' => 'offer_detail',
@@ -195,6 +232,7 @@ class InboxController extends Controller
                         'username' => $offer->seller->username,
                         'avatar'   => $offer->seller->avatar,
                     ],
+                    'history' => $history
                 ]
             ]);
         }

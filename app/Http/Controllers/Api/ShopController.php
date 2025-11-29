@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Helpers\PusherHelper;
 use App\Models\Notification;
+use App\Models\Offer;
 use App\Notifications\ShopFollowNotification;
 // use Illuminate\Support\Facades\Notification;
 
@@ -235,19 +236,37 @@ class ShopController extends Controller
     }
 
 
-    public function shopsList(Request $request)
-    {
-        $user = $request->user();
+public function shopsList(Request $request)
+{
+    $user = $request->user();
 
-        // Fetch all shops except current user's
-        $shops = Shop::where('user_id', '!=', $user->id)
-            ->select('id', 'name')
-            ->orderBy('name')
-            ->get();
+    // shops where user already sent an active offer
+    $blockedShopIds = Offer::where('offers.buyer_id', $user->id)
+        ->where('offers.is_owner_offer', false)
+        ->where('offers.status', 'pending')
+        ->where(function ($q) {
+            $q->whereNull('offers.expires_at')
+              ->orWhere('offers.expires_at', '>', now());
+        })
+        ->join('products', 'offers.product_id', '=', 'products.id')
+        ->join('shops', 'products.shop_id', '=', 'shops.id')
+        ->pluck('shops.id')
+        ->toArray();
 
-        return response()->json([
-            'message' => 'Shops fetched successfully',
-            'data' => $shops
-        ]);
-    }
+    // show shops except:
+    // - user’s own
+    // - shops user already sent offer to
+    $shops = Shop::where('user_id', '!=', $user->id)
+        ->whereNotIn('id', $blockedShopIds)
+        ->select('id', 'name')
+       ->orderBy('id', 'asc')
+        ->get();
+
+    return response()->json([
+        'message' => 'Shops fetched successfully',
+        'data' => $shops
+    ]);
+}
+
+
 }
