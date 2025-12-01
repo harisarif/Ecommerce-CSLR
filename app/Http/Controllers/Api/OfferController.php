@@ -99,58 +99,40 @@ class OfferController extends Controller
                     'message' => $data['message'] ?? null,
                     'sent_at' => now(),
                 ]);
-
-                // // ✅ Create message
-                // $message = OfferMessage::create([
-                //     'offer_id' => $offer->id,
-                //     'sender_id' => $user->id,
-                //     'recipient_id' => $recipientShop->user_id,
-                //     'body' => "{$user->username} sent an offer for product \"{$product->slug}\" at price {$data['price']} AED",
-                //     'meta' => [
-                //         'product_id' => $product->id,
-                //         'product_title' => $product->slug,
-                //         'price_offered' => $data['price'],
-                //         'type' => 'offer',
-                //     ],
-                //     'is_read' => false,
-                // ]);
-
                 // ✅ Send notification
                 $recipient = $recipientShop->user;
                 // $notificationText = MessageTypeHelper::notificationText($message, $user->username);
                 $notificationText = "{$user->username} sent you a new offer for product \"{$product->slug}\" at price {$data['price']} AED";
+                if ($recipient) {
+                    Notification::create([
+                        'type' => 'offer',
+                        'notifiable_type' => get_class($recipient),
+                        'notifiable_id' => $recipient->id,
+                        'data' => [
+                            'title' => 'New Offer Received',
+                            'body' => $notificationText,
+                            'sender_id' => $user->id,
+                            'recipient_id' => $recipient->id,
+                            'offer_id' => $offer->id,
+                            'product_id' => $product->id,
+                        ],
+                    ]);
 
-                Notification::create([
-                    'type' => 'offer',
-                    'notifiable_type' => get_class($recipient),
-                    'notifiable_id' => $recipient->id,
-                    'data' => [
+                    PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
                         'title' => 'New Offer Received',
                         'body' => $notificationText,
-                        'sender_id' => $user->id,
-                        'recipient_id' => $recipient->id,
+                        'type' => 'offer',
+                        'sender' => [
+                            'id' => $user->id,
+                            'username' => $user->username,
+                            'avatar' => $user->avatar,
+                        ],
                         'offer_id' => $offer->id,
                         'product_id' => $product->id,
-                    ],
-                ]);
+                    ]);
 
-                PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
-                    'title' => 'New Offer Received',
-                    'body' => $notificationText,
-                    'type' => 'offer',
-                    'sender' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'avatar' => $user->avatar,
-                    ],
-                    'offer_id' => $offer->id,
-                    'product_id' => $product->id,
-                ]);
-
-                // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-                //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-                // ]);
-
+                    
+                }
                 $createdOffers[] = $offer;
             }
 
@@ -185,23 +167,6 @@ class OfferController extends Controller
                 'message' => $data['message'] ?? null,
                 'sent_at' => now(),
             ]);
-
-            // // ✅ Create initial offer message
-            // $message = OfferMessage::create([
-            //     'offer_id' => $offer->id,
-            //     'sender_id' => $user->id,
-            //     'recipient_id' => $sellerUserId,
-            //     'body' => "{$user->username} sent an offer for the product \"{$product->slug}\" at price {$data['price']}",
-            //     'meta' => [
-            //         'product_id' => $product->id,
-            //         'product_title' => $product->slug,
-            //         'price_offered' => $data['price'],
-            //         'type'           => 'offer',
-            //     ],
-            //     'is_read' => false,
-            // ]);
-
-
 
             // ✅ Prepare notification
             $recipient = User::find($sellerUserId);
@@ -238,9 +203,6 @@ class OfferController extends Controller
                     'product_id' => $product->id,
                 ]);
 
-                // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-                //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-                // ]);
             }
             return response()->json(['message' => 'Offer sent', 'data' => $offer], 201);
         }
@@ -279,6 +241,7 @@ class OfferController extends Controller
                             'price'      => $offer->price,
                             'message'    => $offer->message,
                             'status'     => $offer->status,
+                            'is_paid'    => $offer->is_paid, 
                             'created_at' => $offer->created_at,
                             'buyer'      => [
                                 'id'       => $offer->buyer->id,
@@ -331,6 +294,7 @@ class OfferController extends Controller
                         'price'      => $latest->price,
                         'message'    => $latest->message,
                         'status'     => $latest->status,
+                        'is_paid'    => $latest->is_paid, 
                         'created_at' => $latest->created_at,
                         'seller'      => [
                             'id'       => $latest->seller->id,
@@ -374,6 +338,7 @@ class OfferController extends Controller
                         'price'      => $latest->price,
                         'message'    => $latest->message,
                         'status'     => $latest->status,
+                        'is_paid'    => $latest->is_paid, 
                         'created_at' => $latest->created_at,
                         'seller'     => [
                             'id'       => $latest->seller->id,
@@ -428,6 +393,7 @@ class OfferController extends Controller
                         'price'      => $latest->price,
                         'message'    => $latest->message,
                         'status'     => $latest->status,
+                        'is_paid'    => $latest->is_paid, 
                         'created_at' => $latest->created_at,
                         'buyer'      => [
                             'id'       => $latest->buyer->id,
@@ -464,27 +430,11 @@ class OfferController extends Controller
             return response()->json(['message' => 'Offer already responded to'], 422);
         }
 
-        // // ✅ Log response message
-        // $message = OfferMessage::create([
-        //     'offer_id'     => $offer->id,
-        //     'sender_id'    => $user->id,
-        //     'recipient_id' => $offer->buyer_id,
-        //     'body'         => "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price}",
-        //     'meta' => [
-        //         'product_id'     => $offer->product->id,
-        //         'product_title'  => $offer->product->slug,
-        //         'price_offered'  => $offer->price,
-        //         'type'           => 'offer_response',
-        //         'status'         => $data['status'],
-        //     ],
-        //     'is_read' => false,
-        // ]);
+        // ✅ Log response message
 
         $offer->status = $data['status'];
         $offer->responded_at = Carbon::now();
         $offer->save();
-
-
 
         // ✅ Send notification & pusher
         $recipient = User::find($offer->buyer_id);
@@ -518,10 +468,8 @@ class OfferController extends Controller
                     'avatar' => $user->avatar,
                 ],
             ]);
+            
 
-            // PusherHelper::trigger("private-chat-{$recipient->id}", 'new-message', [
-            //     'message' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar'),
-            // ]);
         }
 
         return response()->json(['message' => 'Offer updated', 'data' => $offer]);
@@ -565,7 +513,7 @@ class OfferController extends Controller
         $recipientId = $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id;
         $recipient = User::find($recipientId);
 
-        OfferCounter::create([
+        $counter = OfferCounter::create([
             'offer_id' => $offer->id,
             'sender_id' => $user->id,
             'recipient_id' => $recipientId,
@@ -575,22 +523,6 @@ class OfferController extends Controller
         ]);
 
         $notificationText = "{$user->username} sent a counter offer at price {$data['price']} AED";
-
-
-        // // ✅ Create chat message
-        // $message = OfferMessage::create([
-        //     'offer_id'     => $offer->id,
-        //     'sender_id'    => $user->id,
-        //     'recipient_id' => $user->id === $offer->seller_id ? $offer->buyer_id : $offer->seller_id,
-        //     'body'         => "{$user->username} sent a counter offer for product \"{$offer->product->slug}\" at price {$data['price']}",
-        //     'meta' => [
-        //         'product_id'     => $offer->product->id,
-        //         'product_title'  => $offer->product->slug,
-        //         'price_offered'  => $data['price'],
-        //         'type'           => 'counter_offer',
-        //     ],
-        //     'is_read' => false,
-        // ]);
 
         // ✅ Notify recipient
 
@@ -619,6 +551,7 @@ class OfferController extends Controller
                     'avatar' => $user->avatar,
                 ],
             ]);
+
         }
 
         // Fetch the newly created counter offer
