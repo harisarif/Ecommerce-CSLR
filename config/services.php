@@ -43,6 +43,9 @@ return [
             'cluster' => env('PUSHER_APP_CLUSTER'),
         ],
 
-    ]
+    ],
+    'firebase' => [
+       'credentials' => storage_path('firebase/seller-1d654-firebase-adminsdk-fbsvc-c2a033488b.json'),
+    ],
 
 ];

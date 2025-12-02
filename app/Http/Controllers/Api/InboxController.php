@@ -14,6 +14,8 @@ use App\Notifications\OfferNotification;
 use App\Models\Notification;
 use App\Models\Product;
 use App\Models\Shop;
+use App\Helpers\FcmHelper;
+
 
 class InboxController extends Controller
 {
@@ -417,6 +419,24 @@ class InboxController extends Controller
             'message_id' => $message->id,
         ]);
 
+        // ✅ 3️⃣ Send FCM Push Notification
+        if (!empty($recipient->fcm_token)) {
+            FcmHelper::send(
+                $recipient,
+                'New Message',
+                $notificationText,
+                $message->id,
+                '',
+                [
+                    'type' => 'chat',
+                    'product_id' => $meta['product_id'],
+                    'sender' => [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                    ]
+                ]
+            );
+        }
 
         return response()->json([
             'message' => 'Message sent successfully',
