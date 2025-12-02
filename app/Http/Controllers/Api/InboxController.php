@@ -59,7 +59,18 @@ class InboxController extends Controller
             ->whereIn('id', $latestMessages)
             ->whereRaw("JSON_EXTRACT(meta, '$.type') = 'chat'")
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->map(function ($msg) {
+                // If NO offer exists but product_id is inside meta, attach product manually
+                if (!$msg->offer_id && isset($msg->meta['product_id'])) {
+                    $msg->product = Product::select('id', 'slug')
+                        ->find($msg->meta['product_id']);
+                } else {
+                    // When offer exists use offer.product
+                    $msg->product = $msg->offer->product ?? null;
+                }
+                return $msg;
+            });
 
         return response()->json([
             'data' => $messages
@@ -69,48 +80,6 @@ class InboxController extends Controller
     /**
      * ✅ Get full chat messages with a specific user and optional product
      */
-    // public function chatThread(Request $request)
-    // {
-    //     $user = $request->user();
-
-    //     $data = $request->validate([
-    //         'recipient_id' => 'required|integer|exists:users,id',
-    //         'product_id' => 'nullable|integer|exists:products,id',
-    //         'offer_id' => 'nullable|integer|exists:offers,id',
-    //     ]);
-
-    //     $query = OfferMessage::with(['sender:id,username,avatar', 'recipient:id,username,avatar'])
-    //         ->where(function ($q) use ($user, $data) {
-    //             $q->where(function ($sub) use ($user, $data) {
-    //                 $sub->where('sender_id', $user->id)
-    //                     ->where('recipient_id', $data['recipient_id']);
-    //             })
-    //                 ->orWhere(function ($sub) use ($user, $data) {
-    //                     $sub->where('sender_id', $data['recipient_id'])
-    //                         ->where('recipient_id', $user->id);
-    //                 });
-    //         });
-
-    //     // 🟢 If offer_id given → show all messages linked to this offer
-    //     if (!empty($data['offer_id'])) {
-    //         $query->where('offer_id', $data['offer_id']);
-    //     } 
-    //     // 🟢 If product_id given → show all offers/messages for this product
-    //     elseif (!empty($data['product_id'])) {
-    //         $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(meta, '$.product_id')) = ?", [$data['product_id']]);
-    //     }
-    //     // 🟡 Otherwise → show only simple chat
-    //     else {
-    //         $query->whereNull('offer_id')
-    //             ->whereRaw("JSON_EXTRACT(meta, '$.type') = 'chat'");
-    //     }
-
-    //     $messages = $query->orderBy('created_at')->get();
-
-    //     return response()->json(['data' => $messages]);
-    // }
-
-
 
     public function chatThread(Request $request)
     {
@@ -238,7 +207,7 @@ class InboxController extends Controller
         }
 
 
-        if (!empty($data['product_id'])) {
+        if (!empty($data['product_id']) && empty($data['recipient_id'])) {
 
             $product = Product::with('shop')->find($data['product_id']);
             if (!$product) {
@@ -336,7 +305,8 @@ class InboxController extends Controller
 
 
         // 🟡 Simple chat messages (non-offer)
-        if (!empty($data['recipient_id'])) {
+        if (!empty($data['recipient_id']) && !empty($data['product_id'])) {
+
             $messages = OfferMessage::with(['sender:id,username,avatar', 'recipient:id,username,avatar'])
                 ->where(function ($q) use ($user, $data) {
                     $q->where(function ($sub) use ($user, $data) {
@@ -347,12 +317,18 @@ class InboxController extends Controller
                             ->where('recipient_id', $user->id);
                     });
                 })
-                ->whereRaw("JSON_EXTRACT(meta, '$.type') = 'chat'")
+                ->whereRaw("CAST(JSON_UNQUOTE(JSON_EXTRACT(meta, '$.product_id')) AS UNSIGNED) = ?", [$data['product_id']])
+                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(meta, '$.type')) = 'chat'")
                 ->orderBy('created_at')
                 ->get();
 
-            return response()->json(['success' => true, 'type' => 'chat', 'data' => $messages]);
+            return response()->json([
+                'success' => true,
+                'type'    => 'chat',
+                'data'    => $messages
+            ]);
         }
+
 
         return response()->json(['success' => false, 'message' => 'Invalid parameters.'], 422);
     }
@@ -368,7 +344,7 @@ class InboxController extends Controller
         $data = $request->validate([
             'recipient_id' => 'required|integer|exists:users,id',
             'body' => 'required|string',
-            'product_id' => 'nullable|integer|exists:products,id',
+            'product_id' => 'required|integer|exists:products,id',
             'offer_id' => 'nullable|integer|exists:offers,id',
         ]);
 
