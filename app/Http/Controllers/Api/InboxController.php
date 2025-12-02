@@ -15,6 +15,7 @@ use App\Models\Notification;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Helpers\FcmHelper;
+use GuzzleHttp\Client;
 
 
 class InboxController extends Controller
@@ -356,6 +357,51 @@ class InboxController extends Controller
                 'message' => 'You cannot send a message to yourself.'
             ], 422);
         }
+        $text = trim(preg_replace('/\s+/', ' ', $data['body']));
+        try {
+            $client = new Client();
+            $apiKey = env('GEMINI_API_KEY');
+
+            $response = $client->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+                [
+                    'headers' => [
+                        'x-goog-api-key' => $apiKey,
+                        'Content-Type' => 'application/json'
+                    ],
+                    'json' => [
+                        'contents' => [
+                            ['parts' => [[
+                                'text' => "Check the following message carefully. 
+                                Does it contain any personal data like an email, phone number, social media link, account URL, or any instruction to share personal info (for example: 'I will send you my email', 'my phone is', 'contact me on', etc.)? 
+                                Answer ONLY with YES if it contains or NO if it does not.
+
+                                Message:
+                                \"{$text}\""
+                            ]]]
+                        ],
+                        'model' => 'gemini-2.5-flash'
+                    ],
+                ]
+            );
+            $body = json_decode($response->getBody(), true);
+            $answer = strtolower($body['candidates'][0]['content']['parts'][0]['text'] ?? '');
+
+            if (str_contains($answer, 'yes')) {
+                return response()->json([
+                    'message' => 'Your message violates policy: personal data not allowed.'
+                ], 422);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Gemini API failed: '.$e->getMessage());
+
+            // 🔹 Fallback manual check
+            if ($this->manualCheckMessage($text)) {
+                return response()->json([
+                    'message' => 'Your message violates policy: personal data not allowed (manual check).'
+                ], 422);
+            }
+        }
 
         $meta = [
             'type' => !empty($data['offer_id']) ? 'offer_chat' : 'chat',
@@ -442,5 +488,45 @@ class InboxController extends Controller
             'message' => 'Message sent successfully',
             'data' => $message->load('sender:id,username,avatar', 'recipient:id,username,avatar')
         ], 201);
+    }
+
+    private function manualCheckMessage(string $text): bool
+    {
+        $text = strtolower(trim($text));
+
+        // 1️⃣ Regex for emails, phone numbers, URLs
+        $patterns = [
+            '/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/',          // emails
+            '/\+?\d[\d\s\-]{7,}\d/',                             // phone numbers
+            '/https?:\/\/[^\s]+|www\.[^\s]+/',                  // URLs
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $text)) {
+                return true; // blocked
+            }
+        }
+
+        // 2️⃣ Keyword-based detection for instructions to share info
+        $keywords = [
+            'i will send you my email',
+            'my phone is',
+            'contact me on',
+            'dm me',
+            'whatsapp',
+            'telegram',
+            'instagram',
+            'facebook',
+            'snapchat',
+            'linkedin',
+        ];
+
+        foreach ($keywords as $keyword) {
+            if (str_contains($text, $keyword)) {
+                return true; // blocked
+            }
+        }
+
+        return false; // safe
     }
 }
