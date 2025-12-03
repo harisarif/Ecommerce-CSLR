@@ -358,65 +358,74 @@ class InboxController extends Controller
             ], 422);
         }
         $text = trim(preg_replace('/\s+/', ' ', $data['body']));
-        try {
-            $client = new \GuzzleHttp\Client();
-            $apiKey = env('GEMINI_API_KEY');
 
-            $response = $client->post(
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-                [
-                    'headers' => [
-                        'x-goog-api-key' => $apiKey,
-                        'Content-Type' => 'application/json'
-                    ],
-                    'json' => [
-                        'contents' => [
-                            [
-                                'parts' => [
-                                    [
-                                        'text' => "Check the following message carefully. 
-                                        Does it contain any personal data like an email, phone number, social media link, account URL, 
-                                        or any instruction to share personal info?
-
-                                        Only answer: YES or NO.
-
-                                        Message:
-                                        \"{$text}\"
-                                        "
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            );
-
-            $body = json_decode($response->getBody(), true);
-
-            // 🔹 Safe read (no crash)
-            $answer = strtolower(
-                $body['candidates'][0]['content']['parts'][0]['text'] ?? ''
-            );
-
-            if (str_contains($answer, 'yes')) {
-                return response()->json([
-                    'message' => 'Your message violates policy: personal data not allowed.'
-                ], 422);
-            }
-
-        } catch (\Exception $e) {
-
-            \Log::warning('Gemini API failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            // 🔹 Fallback manual check (never crashes)
-            if ($this->manualCheckMessage($text)) {
-                return response()->json([
-                    'message' => 'Your message contains restricted personal data.'
-                ], 422);
-            }
+        // ✅ Manual check for personal data
+        if ($this->manualCheckMessage($text)) {
+            return response()->json([
+                'message' => 'Your message contains restricted personal data.'
+            ], 422);
         }
+
+        // This is used for gemini detect violation in chat
+        // try {
+        //     $client = new \GuzzleHttp\Client();
+        //     $apiKey = env('GEMINI_API_KEY');
+
+        //     $response = $client->post(
+        //         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        //         [
+        //             'headers' => [
+        //                 'x-goog-api-key' => $apiKey,
+        //                 'Content-Type' => 'application/json'
+        //             ],
+        //             'json' => [
+        //                 'contents' => [
+        //                     [
+        //                         'parts' => [
+        //                             [
+        //                                 'text' => "Check the following message carefully. 
+        //                                 Does it contain any personal data like an email, phone number, social media link, account URL, 
+        //                                 or any instruction to share personal info?
+
+        //                                 Only answer: YES or NO.
+
+        //                                 Message:
+        //                                 \"{$text}\"
+        //                                 "
+        //                             ]
+        //                         ]
+        //                     ]
+        //                 ]
+        //             ]
+        //         ]
+        //     );
+
+        //     $body = json_decode($response->getBody(), true);
+
+        //     // 🔹 Safe read (no crash)
+        //     $answer = strtolower(
+        //         $body['candidates'][0]['content']['parts'][0]['text'] ?? ''
+        //     );
+
+        //     if (str_contains($answer, 'yes')) {
+        //         return response()->json([
+        //             'message' => 'Your message violates policy: personal data not allowed.'
+        //         ], 422);
+        //     }
+
+        // } catch (\Exception $e) {
+
+        //     \Log::warning('Gemini API failed', [
+        //         'error' => $e->getMessage(),
+        //     ]);
+
+        //     // 🔹 Fallback manual check (never crashes)
+        //     if ($this->manualCheckMessage($text)) {
+        //         return response()->json([
+        //             'message' => 'Your message contains restricted personal data.'
+        //         ], 422);
+        //     }
+        // }
 
 
         $meta = [
@@ -483,20 +492,21 @@ class InboxController extends Controller
 
         // ✅ 3️⃣ Send FCM Push Notification
         if (!empty($recipient->fcm_token)) {
+
             FcmHelper::send(
-                $recipient,
-                'New Message',
-                $notificationText,
-                $message->id,
-                '',
-                [
+                $recipient,          // $user
+                'New Message',        // $title
+                $notificationText,    // $body
+                [                     // $extraData
                     'type' => 'chat',
                     'product_id' => $meta['product_id'],
                     'sender' => [
                         'id' => $user->id,
                         'username' => $user->username,
                     ]
-                ]
+                ],
+                $message->id          // $id
+                // $type will default to 'notification'
             );
         }
 

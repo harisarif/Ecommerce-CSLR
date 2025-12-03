@@ -130,32 +130,38 @@ class OfferController extends Controller
                         'offer_id' => $offer->id,
                         'product_id' => $product->id,
                     ]);
-
                     
                     // FCM
                     if (!empty($recipient->fcm_token)) {
-                        FcmHelper::send($recipient, 'New Offer Received', $notificationText, $offer->id,'', [
-                            'type' => 'offer',
-                            'offer' => [
-                                'id' => $offer->id,
-                                'price' => $offer->price,
-                                'message' => $offer->message,
-                                'status' => $offer->status,
-                                'expires_at' => $offer->expires_at->toDateTimeString(),
+                        FcmHelper::send(
+                            $recipient, 
+                            'New Offer Received', 
+                            $notificationText, 
+                            [
+                                'type' => 'offer',
+                                'offer' => [
+                                    'id' => $offer->id,
+                                    'price' => $offer->price,
+                                    'message' => $offer->message,
+                                    'status' => $offer->status,
+                                    'expires_at' => $offer->expires_at->toDateTimeString(),
+                                ],
+                                'product' => [
+                                    'id' => $product->id,
+                                    'slug' => $product->slug,
+                                    'images' => $product->images->pluck('url')->toArray(),
+                                    'price' => $product->price,
+                                ],
+                                'sender' => [
+                                    'id' => $user->id,
+                                    'username' => $user->username,
+                                    'avatar' => $user->avatar,
+                                ]
                             ],
-                            'product' => [
-                                'id' => $product->id,
-                                'slug' => $product->slug,
-                                'images' => $product->images->pluck('url')->toArray(),
-                                'price' => $product->price,
-                            ],
-                            'sender' => [
-                                'id' => $user->id,
-                                'username' => $user->username,
-                                'avatar' => $user->avatar,
-                            ]
-                        ]);
-                    }    
+                            $offer->id,      // $id
+                            ''          // $type
+                        );
+                    }
                 }
                 $createdOffers[] = $offer;
             }
@@ -230,28 +236,35 @@ class OfferController extends Controller
                 
                 // FCM
                 if (!empty($recipient->fcm_token)) {
-                    FcmHelper::send($recipient, 'New Offer Received', $notificationText, $offer->id, '', [
-                        'type' => 'offer',
-                        'offer' => [
-                            'id' => $offer->id,
-                            'price' => $offer->price,
-                            'message' => $offer->message,
-                            'status' => $offer->status,
-                            'expires_at' => $offer->expires_at->toDateTimeString(),
+                    FcmHelper::send(
+                        $recipient, 
+                        'New Offer Received', 
+                        $notificationText, 
+                        [
+                            'type' => 'offer',
+                            'offer' => [
+                                'id' => $offer->id,
+                                'price' => $offer->price,
+                                'message' => $offer->message,
+                                'status' => $offer->status,
+                                'expires_at' => $offer->expires_at->toDateTimeString(),
+                            ],
+                            'product' => [
+                                'id' => $product->id,
+                                'slug' => $product->slug,
+                                'images' => $product->images->pluck('url')->toArray(),
+                                'price' => $product->price,
+                            ],
+                            'sender' => [
+                                'id' => $user->id,
+                                'username' => $user->username,
+                                'avatar' => $user->avatar,
+                            ]
                         ],
-                        'product' => [
-                            'id' => $product->id,
-                            'slug' => $product->slug,
-                            'images' => $product->images->pluck('url')->toArray(),
-                            'price' => $product->price,
-                        ],
-                        'sender' => [
-                            'id' => $user->id,
-                            'username' => $user->username,
-                            'avatar' => $user->avatar,
-                        ]
-                    ]);
-                }    
+                        $offer->id,      // $id
+                        ''          // $type
+                    );
+                } 
             }
             return response()->json(['message' => 'Offer sent', 'data' => $offer], 201);
         }
@@ -520,28 +533,35 @@ class OfferController extends Controller
             
             // FCM
             if (!empty($recipient->fcm_token)) {
-                 FcmHelper::send($recipient, 'Offer Response', $notificationText, $offer->id, '', [
-                    'type' => 'offer_response',
-                    'offer' => [
-                        'id' => $offer->id,
-                        'price' => $offer->price,
-                        'message' => $offer->message,
-                        'status' => $offer->status,
-                        'expires_at' => $offer->expires_at->toDateTimeString(),
+                FcmHelper::send(
+                    $recipient, 
+                    'Offer Response', 
+                    $notificationText, 
+                    [
+                        'type' => 'offer_response',
+                        'offer' => [
+                            'id' => $offer->id,
+                            'price' => $offer->price,
+                            'message' => $offer->message,
+                            'status' => $offer->status,
+                            'expires_at' => $offer->expires_at->toDateTimeString(),
+                        ],
+                        'product' => [
+                            'id' => $offer->product->id,
+                            'slug' => $offer->product->slug,
+                            'images' => $offer->product->images->pluck('url')->toArray(),
+                            'price' => $offer->product->price,
+                        ],
+                        'sender' => [
+                            'id' => $user->id,
+                            'username' => $user->username,
+                            'avatar' => $user->avatar,
+                        ]
                     ],
-                    'product' => [
-                        'id' => $offer->product->id,
-                        'slug' => $offer->product->slug,
-                        'images' => $offer->product->images->pluck('url')->toArray(),
-                        'price' => $offer->product->price,
-                    ],
-                    'sender' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'avatar' => $user->avatar,
-                    ]
-                ]);
-            }    
+                    $offer->id,          // $id
+                    ''     // $type
+                );
+            } 
         }
 
         return response()->json(['message' => 'Offer updated', 'data' => $offer]);
@@ -623,30 +643,37 @@ class OfferController extends Controller
                     'avatar' => $user->avatar,
                 ],
             ]);
-            //FCM
+            // FCM
             if (!empty($recipient->fcm_token)) {
-                    FcmHelper::send($recipient, 'Counter Offer', $notificationText, $offer->id, '', [
-                    'type' => 'counter_offer',
-                    'offer' => [
-                        'id' => $offer->id,
-                        'price' => $counter->price,
-                        'message' => $counter->message,
-                        'status' => $offer->status,
-                        'expires_at' => $offer->expires_at->toDateTimeString(),
+                FcmHelper::send(
+                    $recipient, 
+                    'Counter Offer', 
+                    $notificationText, 
+                    [
+                        'type' => 'counter_offer',
+                        'offer' => [
+                            'id' => $offer->id,
+                            'price' => $counter->price,
+                            'message' => $counter->message,
+                            'status' => $offer->status,
+                            'expires_at' => $offer->expires_at->toDateTimeString(),
+                        ],
+                        'product' => [
+                            'id' => $offer->product->id,
+                            'slug' => $offer->product->slug,
+                            'images' => $offer->product->images->pluck('url')->toArray(),
+                            'price' => $offer->product->price,
+                        ],
+                        'sender' => [
+                            'id' => $user->id,
+                            'username' => $user->username,
+                            'avatar' => $user->avatar,
+                        ]
                     ],
-                    'product' => [
-                        'id' => $offer->product->id,
-                        'slug' => $offer->product->slug,
-                        'images' => $offer->product->images->pluck('url')->toArray(),
-                        'price' => $offer->product->price,
-                    ],
-                    'sender' => [
-                        'id' => $user->id,
-                        'username' => $user->username,
-                        'avatar' => $user->avatar,
-                    ]
-                ]);
-            }    
+                    $offer->id,          // $id
+                    ''      // $type
+                );
+            } 
         }
 
         // Fetch the newly created counter offer
