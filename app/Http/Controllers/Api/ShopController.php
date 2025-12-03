@@ -12,6 +12,9 @@ use Illuminate\Validation\Rule;
 use App\Helpers\PusherHelper;
 use App\Models\Notification;
 use App\Models\Offer;
+use App\Models\Product;
+use App\Models\ProductInterested;
+use App\Models\Wishlist;
 use App\Notifications\ShopFollowNotification;
 // use Illuminate\Support\Facades\Notification;
 
@@ -240,26 +243,62 @@ public function shopsList(Request $request)
 {
     $user = $request->user();
 
-    // shops where user already sent an active offer
-    $blockedShopIds = Offer::where('offers.buyer_id', $user->id)
-        ->where('offers.is_owner_offer', false)
-        ->where('offers.status', 'pending')
-        ->where(function ($q) {
-            $q->whereNull('offers.expires_at')
-              ->orWhere('offers.expires_at', '>', now());
-        })
-        ->join('products', 'offers.product_id', '=', 'products.id')
-        ->join('shops', 'products.shop_id', '=', 'shops.id')
+    $data = $request->validate([
+        'product_id' => 'required|integer|exists:products,id'
+    ]);
+
+    $productId = $data['product_id'];
+
+    // Ensure the product belongs to the current user
+    $product = Product::where('id', $productId)
+                      ->where('user_id', $user->id)
+                      ->first();
+
+    if (!$product) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Product not found or not yours.'
+        ], 404);
+    }
+
+    // Shops that viewed this product
+    $interestedShops = ProductInterested::where('product_id', $productId)
+        ->pluck('viewer_shop_id')
+        ->toArray();
+
+    // Shops that added this product to wishlist
+    $wishlistShops = Wishlist::where('product_id', $productId)
+        ->join('shops', 'wishlist.user_id', '=', 'shops.user_id')
         ->pluck('shops.id')
         ->toArray();
 
-    // show shops except:
-    // - user’s own
-    // - shops user already sent offer to
-    $shops = Shop::where('user_id', '!=', $user->id)
-        ->whereNotIn('id', $blockedShopIds)
+    $shopList = array_unique(array_merge($interestedShops, $wishlistShops));
+
+    // 🔹 Get pending offers sent by this user for this product
+    $pendingOffers = Offer::where('product_id', $productId)
+        ->where('is_owner_offer', true)
+        ->where('status', 'pending')
+        ->where(function ($q) {
+            $q->whereNull('expires_at')
+              ->orWhere('expires_at', '>', now());
+        })
+        ->pluck('buyer_id') // get the user IDs of buyers
+        ->toArray();
+
+    // 🔹 Get shop IDs of those users
+    $blockedShopIds = Shop::whereIn('user_id', $pendingOffers)
+        ->pluck('id')
+        ->toArray();
+
+    // 🔹 Only block shops that actually are in wishlist/interested for this product
+    $blockedShopIds = array_intersect($blockedShopIds, $shopList);
+
+    // 🔹 Final shops list
+    $finalShops = array_diff($shopList, $blockedShopIds);
+
+    $shops = Shop::whereIn('id', $finalShops)
         ->select('id', 'name')
-       ->orderBy('id', 'asc')
+        ->orderBy('id', 'asc')
         ->get();
 
     return response()->json([
@@ -267,6 +306,10 @@ public function shopsList(Request $request)
         'data' => $shops
     ]);
 }
+
+
+
+
 
 
 }

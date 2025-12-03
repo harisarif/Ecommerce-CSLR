@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductInterested;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use App\Models\Wishlist;
@@ -129,56 +130,6 @@ class ProductController extends Controller
             'products' => $products
         ]);
     }
-
-
-    // public function store(Request $request)
-    // {
-    //     $validated = $request->validate([
-    //         'slug' => 'required|string|max:255|unique:products,slug',
-    //         'product_type' => 'required|string',
-    //         'listing_type' => 'required|string',
-    //         'sku' => 'required|string|max:100|unique:products,sku',
-    //         'price' => 'required|integer',
-    //         'price_discounted' => 'nullable|integer',
-    //         'currency' => 'required|string|max:10',
-    //         'discount_rate' => 'nullable|integer',
-    //         'vat_rate' => 'nullable|numeric',
-    //         'user_id' => 'required|exists:users,id',
-    //         'status' => 'boolean',
-    //         'stock' => 'integer',
-    //         'brand_id' => 'nullable|exists:brands,id',
-    //         'app_category_id' => 'nullable|exists:app_categories,id',
-
-    //         // 👇 extra validation for sizes
-    //         'size_ids' => 'array',
-    //         'size_ids.*' => 'exists:sizes,id',
-
-    //         'attributes' => 'array',
-    //         'attributes.*.type' => 'required|string|max:50',
-    //         'attributes.*.value' => 'required|string|max:100',
-    //     ]);
-
-    //     // create product
-    //     $product = Product::create($validated);
-
-    //     // attach sizes if provided
-    //     if ($request->has('size_ids')) {
-    //         $product->sizes()->attach($validated['size_ids']);
-    //     }
-
-    //     if ($request->has('attributes')) {
-    //         foreach ($validated['attributes'] as $attr) {
-    //             $product->attributes()->create($attr);
-    //         }
-    //     }
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'data' => $product->load('sizes') // return with sizes
-    //     ]);
-    // }
-
-
 
     public function store(Request $request)
     {
@@ -512,6 +463,21 @@ class ProductController extends Controller
                 'message' => 'Product not found.'
             ], 404);
         }
+
+        if ($user && $product->user_id != $user->id) {
+
+            ProductInterested::updateOrCreate(
+                [
+                    'product_id'       => $product->id,
+                    'viewer_id'        => $user->id,
+                ],
+                [
+                    'product_owner_id' => $product->user_id,
+                    'viewer_shop_id'   => $user->shop->id, // IMPORTANT!
+                ]
+            );
+        }
+
 
         // ✅ Determine if the authenticated user is the seller
         $isSeller = $user && $product->user_id === $user->id;
