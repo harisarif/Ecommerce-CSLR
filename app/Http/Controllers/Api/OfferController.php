@@ -118,7 +118,7 @@ class OfferController extends Controller
                         ],
                     ]);
 
-                    PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+                    PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
                         'title' => 'New Offer Received',
                         'body' => $notificationText,
                         'type' => 'offer',
@@ -214,7 +214,7 @@ class OfferController extends Controller
                 ]);
 
                 // 🔔 Send via Pusher (notification + chat)
-                PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+                PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
                     'title' => 'New Offer Received',
                     'body' => $notificationText,
                     'type' => 'offer',
@@ -506,7 +506,7 @@ class OfferController extends Controller
                 ],
             ]);
 
-            PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+            PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
                 'title' => 'Offer Response',
                 'body' => $notificationText,
                 'type' => 'offer_response',
@@ -613,7 +613,7 @@ class OfferController extends Controller
                 ],
             ]);
 
-            PusherHelper::trigger("private-notifications-{$recipient->id}", 'new-notification', [
+            PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
                 'title' => 'Counter Offer',
                 'body' => $notificationText,
                 'type' => 'counter_offer',

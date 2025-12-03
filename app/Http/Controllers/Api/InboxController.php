@@ -446,13 +446,13 @@ class InboxController extends Controller
         }
 
         // ✅ 1️⃣ Pusher event for chat messages
-        $chatChannel = "private-chat-{$recipient->id}";
+        $chatChannel = "private-chat.{$recipient->id}";
         PusherHelper::trigger($chatChannel, 'new-message', [
             'message' => $message,
         ]);
 
         // ✅ 2️⃣ Pusher event for notifications (separate)
-        $notifChannel = "private-notifications-{$recipient->id}";
+        $notifChannel = "private-notifications.{$recipient->id}";
         PusherHelper::trigger($notifChannel, 'new-notification', [
             'title' => 'New Message',
             'body' => $notificationText,
