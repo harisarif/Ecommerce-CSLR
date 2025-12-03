@@ -359,7 +359,7 @@ class InboxController extends Controller
         }
         $text = trim(preg_replace('/\s+/', ' ', $data['body']));
         try {
-            $client = new Client();
+            $client = new \GuzzleHttp\Client();
             $apiKey = env('GEMINI_API_KEY');
 
             $response = $client->post(
@@ -371,37 +371,53 @@ class InboxController extends Controller
                     ],
                     'json' => [
                         'contents' => [
-                            ['parts' => [[
-                                'text' => "Check the following message carefully. 
-                                Does it contain any personal data like an email, phone number, social media link, account URL, or any instruction to share personal info (for example: 'I will send you my email', 'my phone is', 'contact me on', etc.)? 
-                                Answer ONLY with YES if it contains or NO if it does not.
+                            [
+                                'parts' => [
+                                    [
+                                        'text' => "Check the following message carefully. 
+                                        Does it contain any personal data like an email, phone number, social media link, account URL, 
+                                        or any instruction to share personal info?
 
-                                Message:
-                                \"{$text}\""
-                            ]]]
-                        ],
-                        'model' => 'gemini-2.5-flash'
-                    ],
+                                        Only answer: YES or NO.
+
+                                        Message:
+                                        \"{$text}\"
+                                        "
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
                 ]
             );
+
             $body = json_decode($response->getBody(), true);
-            $answer = strtolower($body['candidates'][0]['content']['parts'][0]['text'] ?? '');
+
+            // 🔹 Safe read (no crash)
+            $answer = strtolower(
+                $body['candidates'][0]['content']['parts'][0]['text'] ?? ''
+            );
 
             if (str_contains($answer, 'yes')) {
                 return response()->json([
                     'message' => 'Your message violates policy: personal data not allowed.'
                 ], 422);
             }
-        } catch (\Exception $e) {
-            \Log::warning('Gemini API failed: '.$e->getMessage());
 
-            // 🔹 Fallback manual check
+        } catch (\Exception $e) {
+
+            \Log::warning('Gemini API failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            // 🔹 Fallback manual check (never crashes)
             if ($this->manualCheckMessage($text)) {
                 return response()->json([
-                    'message' => 'Your message violates policy: personal data not allowed (manual check).'
+                    'message' => 'Your message contains restricted personal data.'
                 ], 422);
             }
         }
+
 
         $meta = [
             'type' => !empty($data['offer_id']) ? 'offer_chat' : 'chat',
