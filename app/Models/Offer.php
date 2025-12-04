@@ -28,6 +28,7 @@ class Offer extends Model
         'buyer_read' => 'boolean',
         'seller_read' => 'boolean',
         'responded_at' => 'datetime',
+        'expires_at' => 'datetime', 
         'is_paid' => 'boolean',
         'is_owner_offer' => 'boolean',
     ];
