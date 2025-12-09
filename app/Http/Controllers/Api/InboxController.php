@@ -481,6 +481,7 @@ class InboxController extends Controller
                 'avatar' => $user->avatar,
             ],
             'type' => $meta['type'],
+            'product_id' => $meta['product_id'], 
             'message_id' => $message->id,
         ]);
 

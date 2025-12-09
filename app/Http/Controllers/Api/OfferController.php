@@ -516,6 +516,7 @@ class OfferController extends Controller
                     'recipient_id' => $offer->buyer_id,
                     'offer_id' => $offer->id,
                     'status' => $data['status'],
+                    'product_id' => $offer->product_id,   
                 ],
             ]);
 
@@ -523,6 +524,7 @@ class OfferController extends Controller
                 'title' => 'Offer Response',
                 'body' => $notificationText,
                 'type' => 'offer_response',
+                'product_id' => $offer->product_id,   
                 'status' => $data['status'],
                 'sender' => [
                     'id' => $user->id,
@@ -637,6 +639,7 @@ class OfferController extends Controller
                 'title' => 'Counter Offer',
                 'body' => $notificationText,
                 'type' => 'counter_offer',
+                'product_id' => $offer->product->id, 
                 'sender' => [
                     'id' => $user->id,
                     'username' => $user->username,
