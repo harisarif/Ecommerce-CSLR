@@ -32,13 +32,29 @@ class AuthController extends Controller
 
         $email = $request->email;
         $token = Str::random(64);
-        
+
         // Save FCM token if user exists already
         $user = User::where('email', $email)->first();
-        if ($user && $request->filled('fcm_token')) {
-            $user->fcm_token = $request->fcm_token;
-            $user->save();
+        if ($user) {
+            if ($request->filled('fcm_token')) {
+                $user->fcm_token = $request->fcm_token;
+                $user->save();
+
+                \Log::info("📲 FCM Token Saved in emailLoginRequest", [
+                    'email' => $email,
+                    'fcm_token' => $request->fcm_token
+                ]);
+            } else {
+                \Log::warning("⚠ No FCM token provided in emailLoginRequest", [
+                    'email' => $email
+                ]);
+            }
+        } else {
+            \Log::info("🆕 New user login request — no FCM save needed yet", [
+                'email' => $email
+            ]);
         }
+
 
         EmailLoginToken::create([
             'email' => $email,
@@ -103,26 +119,41 @@ class AuthController extends Controller
 
         $user = User::where('email', $record->email)->first();
 
-        if ($user) {
-            // Save/update FCM token
-            if ($request->filled('fcm_token')) {
-                $user->fcm_token = $request->fcm_token;
-                $user->save();
-            }
-            $apiToken = JWTAuth::fromUser($user);
-            $record->delete();
 
-            return response()->json([
-                'status' => 'success',
-                'token' => $apiToken,
-                'email' => $user->email
+    if ($user) {
+        if ($request->filled('fcm_token')) {
+            $user->fcm_token = $request->fcm_token;
+            $user->save();
+
+            \Log::info("📲 FCM Token Saved in emailLoginVerify", [
+                'email' => $user->email,
+                'fcm_token' => $request->fcm_token
             ]);
         } else {
-            return response()->json([
-                'status' => 'new_user',
-                'email' => $record->email
+            \Log::warning("⚠ No FCM token received in emailLoginVerify", [
+                'email' => $user->email
             ]);
         }
+
+        $apiToken = JWTAuth::fromUser($user);
+        $record->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'token' => $apiToken,
+            'email' => $user->email
+        ]);
+    } else {
+
+        \Log::info("🆕 New user verified — pending registration", [
+            'email' => $record->email
+        ]);
+
+        return response()->json([
+            'status' => 'new_user',
+            'email' => $record->email
+        ]);
+    }
 
         // if ($user) {
         //     $apiToken = $user->createToken('auth-token')->plainTextToken;
