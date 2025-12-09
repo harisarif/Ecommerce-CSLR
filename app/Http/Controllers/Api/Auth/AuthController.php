@@ -27,10 +27,18 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
+            'fcm_token' => 'nullable|string',
         ]);
 
         $email = $request->email;
         $token = Str::random(64);
+        
+        // Save FCM token if user exists already
+        $user = User::where('email', $email)->first();
+        if ($user && $request->filled('fcm_token')) {
+            $user->fcm_token = $request->fcm_token;
+            $user->save();
+        }
 
         EmailLoginToken::create([
             'email' => $email,
