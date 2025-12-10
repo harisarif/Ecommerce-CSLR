@@ -182,4 +182,24 @@ class NotificationController extends Controller
             'message' => "Cleared all ({$count}) notifications",
         ]);
     }
+
+    /**
+     * ✅ Send unread notifications count
+     */
+
+    public function unreadCount(Request $request)
+    {
+        $user = $request->user();
+
+        $count = Notification::where('notifiable_type', get_class($user))
+            ->where('notifiable_id', $user->id)
+            ->whereNull('read_at')
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => $count,
+        ]);
+    }
+
 }

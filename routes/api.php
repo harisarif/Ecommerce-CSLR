@@ -126,8 +126,9 @@ Route::prefix('v1')->group(function () {
         });   
 
         //Notifications
-        Route::prefix('notifications')->middleware('auth:api')->group(function () {
+        Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
+            Route::get('/unread/count', [NotificationController::class, 'unreadCount']);
             Route::get('/unread', [NotificationController::class, 'unread']);
 
             Route::post('/read/{id}', [NotificationController::class, 'markAsRead']);
