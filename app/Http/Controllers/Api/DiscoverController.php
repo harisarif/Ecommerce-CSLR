@@ -32,42 +32,42 @@ class DiscoverController extends Controller
         //     ->get();
 
         $categories = AppCategory::select('id', 'slug', 'parent_id')
-    ->where('parent_id', 0)
-    ->with([
-        'children.children.children', // load deeper children
-        'children' => function ($q) {
-            $q->select('id', 'slug', 'parent_id')
-                ->with(['children' => function ($q2) {
-                    $q2->select('id', 'slug', 'parent_id')
-                        ->with('children');
-                }]);
-        }
-    ])
-    ->get()
-    ->map(function ($cat) {
-        return [
-            'id' => $cat->id,
-            'slug' => $cat->slug,
-            'parent_id' => $cat->parent_id,
-            'products_count' => $cat->total_products, // recursive total
-            'children' => $cat->children->map(function ($child) {
-                return [
-                    'id' => $child->id,
-                    'slug' => $child->slug,
-                    'parent_id' => $child->parent_id,
-                    'products_count' => $child->total_products, // recursive total
-                    'children' => $child->children->map(function ($sub) {
-                        return [
-                            'id' => $sub->id,
-                            'slug' => $sub->slug,
-                            'parent_id' => $sub->parent_id,
-                            'products_count' => $sub->total_products, // recursive total
-                        ];
-                    })
-                ];
-            })
-        ];
-    });
+        ->where('parent_id', 0)
+        ->with([
+            'children.children.children', // load deeper children
+            'children' => function ($q) {
+                $q->select('id', 'slug', 'parent_id')
+                    ->with(['children' => function ($q2) {
+                        $q2->select('id', 'slug', 'parent_id')
+                            ->with('children');
+                    }]);
+            }
+        ])
+        ->get()
+        ->map(function ($cat) {
+            return [
+                'id' => $cat->id,
+                'slug' => $cat->slug,
+                'parent_id' => $cat->parent_id,
+                'products_count' => $cat->total_products, // recursive total
+                'children' => $cat->children->map(function ($child) {
+                    return [
+                        'id' => $child->id,
+                        'slug' => $child->slug,
+                        'parent_id' => $child->parent_id,
+                        'products_count' => $child->total_products, // recursive total
+                        'children' => $child->children->map(function ($sub) {
+                            return [
+                                'id' => $sub->id,
+                                'slug' => $sub->slug,
+                                'parent_id' => $sub->parent_id,
+                                'products_count' => $sub->total_products, // recursive total
+                            ];
+                        })
+                    ];
+                })
+            ];
+        });
 
 
         $brands = Brand::withCount('products')->get();
@@ -166,10 +166,29 @@ class DiscoverController extends Controller
             'attributes',
         ]);
 
-        // Category filter
+        // Category filter including all descendants
         if ($request->filled('category_id')) {
-            $query->where('app_category_id', $request->category_id);
+            $category = AppCategory::with('children.children.children')->find($request->category_id);
+
+            if ($category) {
+                $categoryIds = collect([$category->id]);
+
+                // Recursive ID collector
+                $collect = function ($children) use (&$collect, &$categoryIds) {
+                    foreach ($children as $child) {
+                        $categoryIds->push($child->id);
+                        if ($child->children->count()) {
+                            $collect($child->children);
+                        }
+                    }
+                };
+
+                $collect($category->children);
+
+                $query->whereIn('app_category_id', $categoryIds->unique());
+            }
         }
+
 
         // Brand filter
         if ($request->filled('brand_ids')) {
