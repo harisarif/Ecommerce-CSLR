@@ -18,7 +18,9 @@ class Shop extends Model
         'phone',
         'address',
         'settings',
-        'image'
+        'image',
+        'stripe_account_id',
+        'platform_commission_percent',
     ];
 
     protected $casts = [
@@ -75,5 +77,4 @@ class Shop extends Model
     {
         return $this->belongsToMany(User::class, 'shop_followers');
     }
-
 }

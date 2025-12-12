@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Stripe\Stripe;
 use Stripe\Checkout\Session;
-use App\Models\{Cart, Product, Currency, Offer, OfferCounter, Order, OrderProduct, ShippingAddress};
+use App\Models\{Cart, Product, Currency, Offer, OfferCounter, Order, OrderProduct, PaymentTransfer, ShippingAddress, Shop};
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
 
@@ -129,19 +129,32 @@ class StripeCheckoutController extends Controller
                 return response()->json(['message' => 'Invalid checkout scenario.'], 422);
             }
 
+
             // ✅ Step 3: Prepare Stripe line items
             $lineItems = [];
+            $totalAmountCents = 0;
+
             foreach ($products as $item) {
+                $unitAmountCents = max(1, intval(floatval($item['amount']) * 100));
                 $lineItems[] = [
                     'price_data' => [
                         'currency' => strtolower($currency),
-                        'product_data' => [
-                            'name' => $item['name'],
-                        ],
-                       'unit_amount' => max(1, intval(floatval($item['amount']) * 100)), // convert AED to fils
+                        'product_data' => ['name' => $item['name']],
+                        'unit_amount' => $unitAmountCents,
                     ],
                     'quantity' => $item['quantity'],
                 ];
+                $totalAmountCents += $unitAmountCents * intval($item['quantity']);
+            }
+
+            // Calculate platform fee 5%
+            $platformFee = intval($totalAmountCents * 0.05);
+
+            $firstShop = $products->first();
+            $shop = Shop::find($firstShop['shop_id']);
+
+            if (!$shop || !$shop->stripe_account_id) {
+                return response()->json(['message' => 'Shop not connected to Stripe'], 422);
             }
             // Build metadata - include product ids and (optionally) single offer info
             $metadata = [
@@ -164,6 +177,12 @@ class StripeCheckoutController extends Controller
                 'metadata' => $metadata,
                 'success_url' => config('app.frontend_url') . '/order-success?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('app.frontend_url') . '/checkout-cancelled',
+                'payment_intent_data' => [
+                    'application_fee_amount' => $platformFee, // 5% platform fee
+                    'transfer_data' => [
+                        'destination' => $shop->stripe_account_id, // remaining 95% to shop
+                    ],
+                ],
             ]);
 
             DB::commit();
@@ -186,7 +205,7 @@ class StripeCheckoutController extends Controller
     /**
      * Handle Stripe webhook events (when payment succeeds)
      */
-  public function handleStripeWebhook(Request $request)
+    public function handleStripeWebhook(Request $request)
     {
         
         $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
@@ -209,7 +228,31 @@ class StripeCheckoutController extends Controller
             $userId = $metadata['user_id'] ?? null;
             $offerId = $metadata['offer_id'] ?? null;
             $cartId = $metadata['cart_id'] ?? null;
+            
             $productIds = collect(explode(',', $metadata['product_ids'] ?? ''))->filter();
+
+            // Retrieve payment intent and transfer id
+            $paymentIntentId = $session->payment_intent;
+            $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+
+            // transfer id (Stripe automatically creates a transfer to connected account)
+            $transferId = $paymentIntent->charges->data[0]->transfer ?? null;
+            $amountCents = $paymentIntent->amount_received ?? 0;
+            $currency = $paymentIntent->currency ?? 'aed';
+
+            PaymentTransfer::create([
+                'order_id' => $order->id ?? null,
+                'shop_id' => $shop->id ?? null,
+                'stripe_transfer_id' => $transferId,
+                'amount_cents' => $amountCents,
+                'platform_fee_cents' => $paymentIntent->application_fee_amount ?? 0,
+                'currency' => $currency,
+                'status' => 'paid',
+                'meta' => [
+                    'stripe_session_id' => $session->id,
+                    'stripe_customer_id' => $session->customer,
+                ],
+            ]);
 
             DB::beginTransaction();
             try {
