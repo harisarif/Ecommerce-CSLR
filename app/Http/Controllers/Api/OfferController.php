@@ -25,6 +25,7 @@ class OfferController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
+        $userShop = $user->shop;
 
         $data = $request->validate([
             'product_id' => 'required|integer|exists:products,id',
@@ -38,6 +39,12 @@ class OfferController extends Controller
         $maxExpiry = now()->addDays(30);
         $requestedExpiry = Carbon::parse($data['expires_at']);
 
+        
+        if (!$userShop) {
+            return response()->json([
+                'message' => 'You cannot send an offer because you do not have a shop yet.'
+            ], 403);
+        }
         if ($requestedExpiry->greaterThan($maxExpiry)) {
             return response()->json([
                 'message' => 'The offer expiry date cannot exceed 30 days from today.'
@@ -115,6 +122,12 @@ class OfferController extends Controller
                             'recipient_id' => $recipient->id,
                             'offer_id' => $offer->id,
                             'product_id' => $product->id,
+                            'shop' => [
+                                'id' => $product->shop->id,
+                                'name' => $product->shop->name,
+                                'slug' => $product->shop->slug,
+                                'image' => $product->shop->image_url,
+                            ],
                         ],
                     ]);
 
@@ -122,6 +135,12 @@ class OfferController extends Controller
                         'title' => 'New Offer Received',
                         'body' => $notificationText,
                         'type' => 'offer',
+                        'shop' => [
+                            'id' => $product->shop->id,
+                            'name' => $product->shop->name,
+                            'slug' => $product->shop->slug,
+                            'image' => $product->shop->image_url,
+                        ],
                         'sender' => [
                             'id' => $user->id,
                             'username' => $user->username,
@@ -152,6 +171,12 @@ class OfferController extends Controller
                                     'images' => $product->images->pluck('url')->toArray(),
                                     'price' => $product->price,
                                 ],
+                                'shop' => [
+                                    'id' => $product->shop->id,
+                                    'name' => $product->shop->name,
+                                    'slug' => $product->shop->slug,
+                                    'image' => $product->shop->image_url,
+                                ],
                                 'sender' => [
                                     'id' => $user->id,
                                     'username' => $user->username,
@@ -175,6 +200,7 @@ class OfferController extends Controller
             if ($sellerUserId == $user->id) {
                 return response()->json(['message' => 'You cannot send an offer to your own product'], 403);
             }
+                $senderShop = $userShop; 
 
             // create offer
             $offer = Offer::create([
@@ -216,6 +242,12 @@ class OfferController extends Controller
                         'recipient_id' => $sellerUserId,
                         'offer_id' => $offer->id,
                         'product_id' => $product->id,
+                        'shop' => [
+                            'id' => $senderShop->id,
+                            'name' => $senderShop->name,
+                            'slug' => $senderShop->slug,
+                            'image' => $senderShop->image_url,
+                        ],
                     ],
                 ]);
 
@@ -224,6 +256,12 @@ class OfferController extends Controller
                     'title' => 'New Offer Received',
                     'body' => $notificationText,
                     'type' => 'offer',
+                    'shop' => [
+                        'id' => $senderShop->id,
+                        'name' => $senderShop->name,
+                        'slug' => $senderShop->slug,
+                        'image' => $senderShop->image_url,
+                    ],
                     'sender' => [
                         'id' => $user->id,
                         'username' => $user->username,
@@ -254,6 +292,12 @@ class OfferController extends Controller
                                 'slug' => $product->slug,
                                 'images' => $product->images->pluck('url')->toArray(),
                                 'price' => $product->price,
+                            ],
+                            'shop' => [
+                                'id' => $senderShop->id,
+                                'name' => $senderShop->name,
+                                'slug' => $senderShop->slug,
+                                'image' => $senderShop->image_url,
                             ],
                             'sender' => [
                                 'id' => $user->id,
@@ -475,6 +519,7 @@ class OfferController extends Controller
     public function update(Request $request, $id)
     {
         $user = $request->user();
+        $senderShop = $user->shop; 
 
         $offer = Offer::with('product.shop')->findOrFail($id);
 
@@ -517,6 +562,12 @@ class OfferController extends Controller
                     'offer_id' => $offer->id,
                     'status' => $data['status'],
                     'product_id' => $offer->product_id,   
+                    'shop' => [
+                        'id' => $senderShop->id,
+                        'name' => $senderShop->name,
+                        'slug' => $senderShop->slug,
+                        'image' => $senderShop->image_url,
+                    ],
                 ],
             ]);
 
@@ -526,6 +577,13 @@ class OfferController extends Controller
                 'type' => 'offer_response',
                 'product_id' => $offer->product_id,   
                 'status' => $data['status'],
+                // 🔥 SHOP DETAILS
+                'shop' => [
+                    'id' => $senderShop->id,
+                    'name' => $senderShop->name,
+                    'slug' => $senderShop->slug,
+                    'image' => $senderShop->image_url,
+                ],
                 'sender' => [
                     'id' => $user->id,
                     'username' => $user->username,
@@ -554,6 +612,14 @@ class OfferController extends Controller
                             'images' => $offer->product->images->pluck('url')->toArray(),
                             'price' => $offer->product->price,
                         ],
+
+                        // 🔥 SHOP DETAILS
+                        'shop' => [
+                            'id' => $senderShop->id,
+                            'name' => $senderShop->name,
+                            'slug' => $senderShop->slug,
+                            'image' => $senderShop->image_url,
+                        ],
                         'sender' => [
                             'id' => $user->id,
                             'username' => $user->username,
@@ -573,6 +639,7 @@ class OfferController extends Controller
     public function counterOffer(Request $request, $id)
     {
         $user = $request->user();
+        $userShop = $user->shop;
         $offer = Offer::with('product.shop')->findOrFail($id);
 
         if ($offer->seller_id !== $user->id && $offer->buyer_id !== $user->id) {
@@ -618,6 +685,8 @@ class OfferController extends Controller
 
         $notificationText = "{$user->username} sent a counter offer at price {$data['price']} AED";
 
+        $senderShop = $userShop;
+
         // ✅ Notify recipient
 
         if ($recipient) {
@@ -632,6 +701,12 @@ class OfferController extends Controller
                     'recipient_id' => $recipient->id,
                     'offer_id' => $offer->id,
                     'product_id' => $offer->product->id,
+                    'shop' => [
+                        'id' => $senderShop->id,
+                        'name' => $senderShop->name,
+                        'slug' => $senderShop->slug,
+                        'image' => $senderShop->image_url,
+                    ],
                 ],
             ]);
 
@@ -640,6 +715,12 @@ class OfferController extends Controller
                 'body' => $notificationText,
                 'type' => 'counter_offer',
                 'product_id' => $offer->product->id, 
+                'shop' => [
+                    'id' => $senderShop->id,
+                    'name' => $senderShop->name,
+                    'slug' => $senderShop->slug,
+                    'image' => $senderShop->image_url,
+                ],
                 'sender' => [
                     'id' => $user->id,
                     'username' => $user->username,
@@ -666,6 +747,12 @@ class OfferController extends Controller
                             'slug' => $offer->product->slug,
                             'images' => $offer->product->images->pluck('url')->toArray(),
                             'price' => $offer->product->price,
+                        ],
+                        'shop' => [
+                            'id' => $senderShop->id,
+                            'name' => $senderShop->name,
+                            'slug' => $senderShop->slug,
+                            'image' => $senderShop->image_url,
                         ],
                         'sender' => [
                             'id' => $user->id,

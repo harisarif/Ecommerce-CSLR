@@ -343,6 +343,7 @@ class InboxController extends Controller
     public function sendMessage(Request $request)
     {
         $user = $request->user();
+        $senderShop = $user->shop;
 
         $data = $request->validate([
             'recipient_id' => 'required|integer|exists:users,id',
@@ -445,6 +446,16 @@ class InboxController extends Controller
 
         $recipient = User::find($data['recipient_id']);
 
+
+        $shopInfo = null;
+        if ($senderShop) {
+            $shopInfo = [
+                'id' => $senderShop->id,
+                'name' => $senderShop->name,
+                'slug' => $senderShop->slug,
+                'image' => $senderShop->image_url,
+            ];
+        }
         // ✅ Save to database (Laravel Notification)
         if ($recipient) {
             Notification::create([
@@ -458,6 +469,7 @@ class InboxController extends Controller
                     'recipient_id' => $recipient->id,
                     'message_id' => $message->id,
                     'product_id' => $meta['product_id'] ?? null,
+                    'shop' => $shopInfo,
                     'type' => $meta['type'],
                     'created_at' => now()->toDateTimeString(),
                 ],
@@ -468,6 +480,7 @@ class InboxController extends Controller
         $chatChannel = "private-chat.{$recipient->id}";
         PusherHelper::trigger($chatChannel, 'new-message', [
             'message' => $message,
+            'shop' => $shopInfo,
         ]);
 
         // ✅ 2️⃣ Pusher event for notifications (separate)
@@ -482,6 +495,7 @@ class InboxController extends Controller
             ],
             'type' => $meta['type'],
             'product_id' => $meta['product_id'], 
+            'shop' => $shopInfo,
             'message_id' => $message->id,
         ]);
 
@@ -495,6 +509,7 @@ class InboxController extends Controller
                 [                     // $extraData
                     'type' => 'chat',
                     'product_id' => $meta['product_id'],
+                    'shop' => $shopInfo,
                     'sender' => [
                         'id' => $user->id,
                         'username' => $user->username,
