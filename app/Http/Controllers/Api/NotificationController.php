@@ -31,11 +31,23 @@ class NotificationController extends Controller
 
         // Fetch sender info
         $senders = User::whereIn('id', $senderIds)
+            ->with('shop') // include shop relation
             ->get(['id', 'username', 'avatar', 'first_name', 'last_name']);
 
-        // Attach sender info into notification data
-        $notifications->getCollection()->transform(function ($notification) use ($senders) {
+        // Determine a default shop (take the first sender shop with data if exists)
+        $defaultShop = $senders->firstWhere('shop', '!=', null)?->shop;
+        $defaultShopData = $defaultShop ? [
+            'id' => $defaultShop->id,
+            'name' => $defaultShop->name,
+            'slug' => $defaultShop->slug,
+            'image' => $defaultShop->image_url,
+        ] : null;
+
+        // Attach sender info and fill missing shop data
+        $notifications->getCollection()->transform(function ($notification) use ($senders, $defaultShopData) {
             $data = $notification->data ?? [];
+
+            // Attach sender info
             if (!empty($data['sender_id'])) {
                 $sender = $senders->firstWhere('id', $data['sender_id']);
                 if ($sender) {
@@ -45,8 +57,24 @@ class NotificationController extends Controller
                         'avatar' => $sender->avatar,
                         'full_name' => trim(($sender->first_name ?? '') . ' ' . ($sender->last_name ?? '')),
                     ];
+
+                    // Fill shop if missing
+                    if (empty($data['shop']) && !empty($sender->shop)) {
+                        $data['shop'] = [
+                            'id' => $sender->shop->id,
+                            'name' => $sender->shop->name,
+                            'slug' => $sender->shop->slug,
+                            'image' => $sender->shop->image_url,
+                        ];
+                    }
                 }
             }
+
+            // Fallback: if still missing, fill default shop
+            if (empty($data['shop']) && $defaultShopData) {
+                $data['shop'] = $defaultShopData;
+            }
+
             $notification->data = $data;
             return $notification;
         });
@@ -56,6 +84,7 @@ class NotificationController extends Controller
             'data' => $notifications,
         ]);
     }
+
 
     /**
      * ✅ Get only unread notifications
