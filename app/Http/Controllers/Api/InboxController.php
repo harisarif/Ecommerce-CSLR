@@ -56,6 +56,7 @@ class InboxController extends Controller
         // Step 2: Fetch those latest messages
         $messages = OfferMessage::with([
             'sender:id,username,avatar',
+             'sender.shop:id,user_id,name,slug,image', 
             'recipient:id,username,avatar',
             'offer.product:id,slug',
         ])
