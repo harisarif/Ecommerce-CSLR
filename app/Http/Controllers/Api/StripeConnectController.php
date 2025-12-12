@@ -87,4 +87,39 @@ class StripeConnectController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+
+    /**
+     * Check if Stripe Connect is enabled for the user's shop
+     */
+    public function isStripeEnabled(Request $request)
+    {
+        $user = $request->user();
+        
+        // Load the user's shop
+        $shop = Shop::where('user_id', $user->id)->first();
+        
+        if (!$shop || !$shop->stripe_account_id) {
+            return response()->json([
+                'stripe_enabled' => false
+            ]);
+        }
+
+        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        try {
+            $account = \Stripe\Account::retrieve($shop->stripe_account_id);
+
+            return response()->json([
+                'stripe_enabled' => $account->charges_enabled ?? false
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'stripe_enabled' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+
 }

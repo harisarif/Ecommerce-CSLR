@@ -55,6 +55,7 @@ Route::prefix('v1')->group(function () {
         Route::post('stripe/connect/create', [\App\Http\Controllers\Api\StripeConnectController::class, 'createExpressAccount']);
         Route::get('stripe/connect/status', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingStatus']);
         Route::get('stripe/connect/login-link', [\App\Http\Controllers\Api\StripeConnectController::class, 'createLoginLink']);
+        Route::get('/stripe/enabled', [\App\Http\Controllers\Api\StripeConnectController::class, 'isStripeEnabled']);
         Route::post('/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']);
         Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
