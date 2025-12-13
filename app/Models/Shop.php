@@ -77,4 +77,21 @@ class Shop extends Model
     {
         return $this->belongsToMany(User::class, 'shop_followers');
     }
+
+
+    public function isStripeReady(): bool
+    {
+        if (!$this->stripe_account_id) {
+            return false;
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+            $account = \Stripe\Account::retrieve($this->stripe_account_id);
+
+            return $account->charges_enabled === true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
 }
