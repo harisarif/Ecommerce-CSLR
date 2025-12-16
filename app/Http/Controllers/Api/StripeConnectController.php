@@ -38,8 +38,8 @@ class StripeConnectController extends Controller
         // Create account link for onboarding
         $accountLink = \Stripe\AccountLink::create([
             'account' => $shop->stripe_account_id,
-            'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh',
-            'return_url' => config('app.frontend_url') . '/stripe/onboard/complete',
+            'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh?shop_id=' . $shop->id,
+            'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete?shop_id=' . $shop->id,
             'type' => 'account_onboarding',
         ]);
 

@@ -150,37 +150,4 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('sizes', SizeController::class);
     Route::post('/stripe/webhook', [StripeCheckoutController::class, 'handleStripeWebhook']);
 
-       // New routes for Stripe onboarding
-    Route::get('stripe/onboard/refresh', function () {
-        $user = auth()->user();
-        $shop = \App\Models\Shop::where('user_id', $user->id)->first();
-        if (!$shop || !$shop->stripe_account_id) {
-            return response()->json(['message' => 'Shop or Stripe account not found'], 404);
-        }
-
-        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
-
-        $accountLink = \Stripe\AccountLink::create([
-            'account' => $shop->stripe_account_id,
-            'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh',
-            'return_url' => config('app.frontend_url') . '/stripe/onboard/complete',
-            'type' => 'account_onboarding',
-        ]);
-
-        return redirect($accountLink->url);
-    });
-
-    Route::get('stripe/onboard/complete', function () {
-        $user = auth()->user();
-        $shop = \App\Models\Shop::where('user_id', $user->id)->first();
-        if (!$shop || !$shop->stripe_account_id) {
-            return response()->json(['message' => 'Shop or Stripe account not found'], 404);
-        }
-
-        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
-        $acct = \Stripe\Account::retrieve($shop->stripe_account_id);
-
-        // Redirect to frontend page with status
-        return redirect(config('app.frontend_url') . '/stripe-connected?connected=' . ($acct->charges_enabled ? '1' : '0'));
-    });
 });

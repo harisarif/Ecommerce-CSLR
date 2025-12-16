@@ -6,7 +6,8 @@ use App\Models\Offer;
 use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Shop;
-
+use Stripe\Stripe;
+use Stripe\AccountLink;
 Route::get('/', function () {
     return view('welcome');
 });
@@ -207,3 +208,58 @@ Route::get('/fix-missing-shops', function () {
         'details' => $created,
     ]);
 });
+
+
+Route::get('stripe/onboard/refresh', function (Request $request) {
+
+    // 🔑 Get shop_id from query (sent by Stripe redirect)
+    $shopId = $request->query('shop_id');
+
+    if (!$shopId) {
+        return view('stripe.failed');
+    }
+
+    $shop = Shop::find($shopId);
+
+    if (!$shop || !$shop->stripe_account_id) {
+        return view('stripe.failed');
+    }
+
+    Stripe::setApiKey(env('STRIPE_SECRET'));
+
+    // 🔁 Re-create onboarding link
+    $accountLink = AccountLink::create([
+        'account' => $shop->stripe_account_id,
+        'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh?shop_id=' . $shop->id,
+        'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete?shop_id=' . $shop->id,
+        'type' => 'account_onboarding',
+    ]);
+
+    return redirect($accountLink->url);
+});
+
+    Route::get('stripe/onboard/complete', function (Request $request) {
+
+        $shopId = $request->query('shop_id');
+
+        if (!$shopId) {
+            return view('stripe.failed');
+        }
+
+        $shop = \App\Models\Shop::find($shopId);
+
+        if (!$shop || !$shop->stripe_account_id) {
+            return view('stripe.failed');
+        }
+
+        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $account = \Stripe\Account::retrieve($shop->stripe_account_id);
+
+        return view('stripe.complete', [
+            'connected' => (bool) $account->charges_enabled,
+        ]);
+    });
+
+
+
