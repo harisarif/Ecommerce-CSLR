@@ -136,22 +136,51 @@ class StripeConnectController extends Controller
 
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
+        // 1️⃣ Retrieve balance
         $balance = \Stripe\Balance::retrieve([
             'stripe_account' => $shop->stripe_account_id,
         ]);
 
+        // 2️⃣ Retrieve account details
+        $account = \Stripe\Account::retrieve(
+            $shop->stripe_account_id
+        );
+
+        // 3️⃣ Resolve account holder name (Express-safe)
+        $accountHolderName =
+            $account->business_profile->name
+            ?? trim(($account->individual->first_name ?? '') . ' ' . ($account->individual->last_name ?? ''))
+            ?? $account->email
+            ?? 'Account Holder';
+
         return response()->json([
             'connected' => true,
-            'available' => collect($balance->available)->map(fn ($b) => [
-                'amount' => $b->amount / 100,
-                'currency' => strtoupper($b->currency),
-            ]),
-            'pending' => collect($balance->pending)->map(fn ($b) => [
-                'amount' => $b->amount / 100,
-                'currency' => strtoupper($b->currency),
-            ]),
+
+            // 👤 Account info (for UI card)
+            'account' => [
+                'name' => $accountHolderName,
+                'email' => $account->email,
+                'country' => $account->country,
+                'currency' => strtoupper($account->default_currency ?? 'AED'),
+                'charges_enabled' => $account->charges_enabled,
+                'payouts_enabled' => $account->payouts_enabled,
+            ],
+
+            // 💰 Balance info
+            'balance' => [
+                'available' => collect($balance->available)->map(fn ($b) => [
+                    'amount' => $b->amount / 100,
+                    'currency' => strtoupper($b->currency),
+                ])->values(),
+
+                'pending' => collect($balance->pending)->map(fn ($b) => [
+                    'amount' => $b->amount / 100,
+                    'currency' => strtoupper($b->currency),
+                ])->values(),
+            ],
         ]);
     }
+
 
     public function transactions(Request $request)
     {
