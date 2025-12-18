@@ -122,4 +122,90 @@ class StripeConnectController extends Controller
     }
 
 
+    public function balance(Request $request)
+    {
+        $user = $request->user();
+        $shop = Shop::where('user_id', $user->id)->firstOrFail();
+
+        if (!$shop->stripe_account_id) {
+            return response()->json([
+                'connected' => false,
+                'message' => 'Stripe not connected'
+            ]);
+        }
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $balance = \Stripe\Balance::retrieve([
+            'stripe_account' => $shop->stripe_account_id,
+        ]);
+
+        return response()->json([
+            'connected' => true,
+            'available' => collect($balance->available)->map(fn ($b) => [
+                'amount' => $b->amount / 100,
+                'currency' => strtoupper($b->currency),
+            ]),
+            'pending' => collect($balance->pending)->map(fn ($b) => [
+                'amount' => $b->amount / 100,
+                'currency' => strtoupper($b->currency),
+            ]),
+        ]);
+    }
+
+    public function transactions(Request $request)
+    {
+        $user = $request->user();
+        $shop = Shop::where('user_id', $user->id)->firstOrFail();
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $transactions = \Stripe\BalanceTransaction::all([
+            'limit' => 20,
+        ], [
+            'stripe_account' => $shop->stripe_account_id,
+        ]);
+
+        return response()->json(
+            collect($transactions->data)->map(fn ($t) => [
+                'id' => $t->id,
+                'type' => $t->type, // payment, payout, fee
+                'amount' => $t->amount / 100,
+                'fee' => $t->fee / 100,
+                'net' => $t->net / 100,
+                'currency' => strtoupper($t->currency),
+                'status' => $t->status,
+                'created_at' => date('Y-m-d H:i:s', $t->created),
+            ])
+        );
+    }
+
+
+    public function withdraw(Request $request)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:1',
+        ]);
+
+        $user = $request->user();
+        $shop = Shop::where('user_id', $user->id)->firstOrFail();
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $payout = \Stripe\Payout::create([
+            'amount' => intval($request->amount * 100),
+            'currency' => 'aed',
+        ], [
+            'stripe_account' => $shop->stripe_account_id,
+        ]);
+
+        return response()->json([
+            'message' => 'Withdrawal requested',
+            'payout_id' => $payout->id,
+            'status' => $payout->status,
+        ]);
+    }
+
+
+
 }
