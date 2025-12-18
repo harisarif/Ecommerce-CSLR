@@ -166,19 +166,50 @@ class StripeConnectController extends Controller
             'stripe_account' => $shop->stripe_account_id,
         ]);
 
-        return response()->json(
-            collect($transactions->data)->map(fn ($t) => [
+        $data = collect($transactions->data)->map(function ($t) {
+
+            // Default message
+            $message = 'Transaction';
+
+            if ($t->type === 'payment') {
+                $message = $t->status === 'pending'
+                    ? 'Payment received (processing)'
+                    : 'Payment received';
+            }
+
+            if ($t->type === 'payout') {
+                $message = match ($t->status) {
+                    'pending' => 'Withdrawal in progress',
+                    'paid'    => 'Withdrawal completed',
+                    'failed'  => 'Withdrawal failed',
+                    default   => 'Withdrawal',
+                };
+            }
+
+            if ($t->type === 'stripe_fee') {
+                $message = 'Platform fee deducted';
+            }
+
+            if ($t->type === 'transfer') {
+                $message = 'Funds transferred';
+            }
+
+            return [
                 'id' => $t->id,
-                'type' => $t->type, // payment, payout, fee
-                'amount' => $t->amount / 100,
-                'fee' => $t->fee / 100,
+                'message' => $message, // ✅ THIS IS WHAT YOUR UI NEEDS
+                'type' => $t->type,
+                'amount' => abs($t->amount) / 100,
+                'fee' => abs($t->fee) / 100,
                 'net' => $t->net / 100,
                 'currency' => strtoupper($t->currency),
                 'status' => $t->status,
                 'created_at' => date('Y-m-d H:i:s', $t->created),
-            ])
-        );
+            ];
+        });
+
+        return response()->json($data);
     }
+
 
 
     public function withdraw(Request $request)
