@@ -77,6 +77,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('product')->group(function () {
             Route::get('/list', [ProductController::class, 'getUserProducts']);
             Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
+            Route::post('{id}/addproduct-review', [ShopController::class, 'addProductReview']);
         });
 
         Route::prefix('cart')->group(function () {
@@ -107,7 +108,6 @@ Route::prefix('v1')->group(function () {
 
 
             Route::post('{id}/review', [ShopController::class, 'addReview']);
-            Route::post('{id}/addproduct-review', [ShopController::class, 'addProductReview']);
             Route::get('{id}/reviews', [ShopController::class, 'getReviews']);
 
             Route::post('{id}/follow', [ShopController::class, 'follow']);
