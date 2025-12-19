@@ -429,4 +429,10 @@ class Product extends Model
     {
         return $this->shop ? $this->shop->user() : $this->user();
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(\App\Models\Review::class);
+    }
+
 }

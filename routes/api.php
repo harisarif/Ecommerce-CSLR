@@ -107,11 +107,13 @@ Route::prefix('v1')->group(function () {
 
 
             Route::post('{id}/review', [ShopController::class, 'addReview']);
+            Route::post('{id}/addproduct-review', [ShopController::class, 'addProductReview']);
             Route::get('{id}/reviews', [ShopController::class, 'getReviews']);
 
             Route::post('{id}/follow', [ShopController::class, 'follow']);
             Route::post('{id}/unfollow', [ShopController::class, 'unfollow']);
             Route::get('{id}/is-following', [ShopController::class, 'isFollowing']);
+            Route::get('{id}/product-reviews', [ShopController::class, 'shopProductReviews']);
         });   
 
         // Offers

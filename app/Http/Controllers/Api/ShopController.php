@@ -239,73 +239,176 @@ class ShopController extends Controller
     }
 
 
-public function shopsList(Request $request)
-{
-    $user = $request->user();
+    public function shopsList(Request $request)
+    {
+        $user = $request->user();
 
-    $data = $request->validate([
-        'product_id' => 'required|integer|exists:products,id'
-    ]);
+        $data = $request->validate([
+            'product_id' => 'required|integer|exists:products,id'
+        ]);
 
-    $productId = $data['product_id'];
+        $productId = $data['product_id'];
 
-    // Ensure the product belongs to the current user
-    $product = Product::where('id', $productId)
-                      ->where('user_id', $user->id)
-                      ->first();
+        // Ensure the product belongs to the current user
+        $product = Product::where('id', $productId)
+                        ->where('user_id', $user->id)
+                        ->first();
 
-    if (!$product) {
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found or not yours.'
+            ], 404);
+        }
+
+        // Shops that viewed this product
+        $interestedShops = ProductInterested::where('product_id', $productId)
+            ->pluck('viewer_shop_id')
+            ->toArray();
+
+        // Shops that added this product to wishlist
+        $wishlistShops = Wishlist::where('product_id', $productId)
+            ->join('shops', 'wishlist.user_id', '=', 'shops.user_id')
+            ->pluck('shops.id')
+            ->toArray();
+
+        $shopList = array_unique(array_merge($interestedShops, $wishlistShops));
+
+        // 🔹 Get pending offers sent by this user for this product
+        $pendingOffers = Offer::where('product_id', $productId)
+            ->where('is_owner_offer', true)
+            ->where('status', 'pending')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
+            })
+            ->pluck('buyer_id') // get the user IDs of buyers
+            ->toArray();
+
+        // 🔹 Get shop IDs of those users
+        $blockedShopIds = Shop::whereIn('user_id', $pendingOffers)
+            ->pluck('id')
+            ->toArray();
+
+        // 🔹 Only block shops that actually are in wishlist/interested for this product
+        $blockedShopIds = array_intersect($blockedShopIds, $shopList);
+
+        // 🔹 Final shops list
+        $finalShops = array_diff($shopList, $blockedShopIds);
+
+        $shops = Shop::whereIn('id', $finalShops)
+            ->select('id', 'name')
+            ->orderBy('id', 'asc')
+            ->get();
+
         return response()->json([
-            'success' => false,
-            'message' => 'Product not found or not yours.'
-        ], 404);
+            'message' => 'Shops fetched successfully',
+            'data' => $shops
+        ]);
     }
 
-    // Shops that viewed this product
-    $interestedShops = ProductInterested::where('product_id', $productId)
-        ->pluck('viewer_shop_id')
-        ->toArray();
+    public function shopProductReviews($shopId)
+    {
+        $shop = Shop::with(['products.reviews.user'])->findOrFail($shopId);
 
-    // Shops that added this product to wishlist
-    $wishlistShops = Wishlist::where('product_id', $productId)
-        ->join('shops', 'wishlist.user_id', '=', 'shops.user_id')
-        ->pluck('shops.id')
-        ->toArray();
+        $reviews = [];
+        $ratingCounts = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0];
+        $totalRating = 0;
+        $totalReviews = 0;
 
-    $shopList = array_unique(array_merge($interestedShops, $wishlistShops));
+        foreach ($shop->products as $product) {
+            foreach ($product->reviews as $review) {
 
-    // 🔹 Get pending offers sent by this user for this product
-    $pendingOffers = Offer::where('product_id', $productId)
-        ->where('is_owner_offer', true)
-        ->where('status', 'pending')
-        ->where(function ($q) {
-            $q->whereNull('expires_at')
-              ->orWhere('expires_at', '>', now());
-        })
-        ->pluck('buyer_id') // get the user IDs of buyers
-        ->toArray();
+                $totalReviews++;
+                $totalRating += $review->rating;
+                $ratingCounts[$review->rating]++;
 
-    // 🔹 Get shop IDs of those users
-    $blockedShopIds = Shop::whereIn('user_id', $pendingOffers)
-        ->pluck('id')
-        ->toArray();
+                $reviews[] = [
+                    'product_id'   => $product->id,
+                    'product_name' => $product->name,
+                    'rating'       => $review->rating,
+                    'review'       => $review->review,
+                    'user' => [
+                        'id'       => $review->user->id,
+                        'username' => $review->user->username,
+                    ],
+                    'created_at' => $review->created_at,
+                ];
+            }
+        }
 
-    // 🔹 Only block shops that actually are in wishlist/interested for this product
-    $blockedShopIds = array_intersect($blockedShopIds, $shopList);
+        // 🔢 Calculations
+        $averageRating = $totalReviews > 0
+            ? round($totalRating / $totalReviews, 1)
+            : 0;
 
-    // 🔹 Final shops list
-    $finalShops = array_diff($shopList, $blockedShopIds);
+        // Percentage out of 5 stars
+        $ratingPercentage = $totalReviews > 0
+            ? round(($averageRating / 5) * 100)
+            : 0;
 
-    $shops = Shop::whereIn('id', $finalShops)
-        ->select('id', 'name')
-        ->orderBy('id', 'asc')
-        ->get();
+        // ⭐ Breakdown percentages
+        $breakdown = [];
+        foreach ($ratingCounts as $star => $count) {
+            $breakdown[$star] = [
+                'count' => $count,
+                'percentage' => $totalReviews > 0
+                    ? round(($count / $totalReviews) * 100)
+                    : 0
+            ];
+        }
 
-    return response()->json([
-        'message' => 'Shops fetched successfully',
-        'data' => $shops
-    ]);
-}
+        return response()->json([
+            'shop_id'   => $shop->id,
+            'shop_name' => $shop->name,
+            'stats' => [
+                'total_reviews'    => $totalReviews,
+                'average_rating'   => $averageRating,
+                'rating_percentage'=> $ratingPercentage,
+                'breakdown'        => $breakdown,
+            ],
+            'reviews' => $reviews,
+        ]);
+    }
+
+
+    public function addProductReview(Request $request, $productId)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'review' => 'nullable|string|max:1000',
+        ]);
+
+        $product = Product::with('shop')->findOrFail($productId);
+
+        // ❌ Prevent reviewing own shop product
+        if ($product->user_id === $user->id) {
+            return response()->json([
+                'message' => 'You cannot review your own product'
+            ], 403);
+        }
+
+        $review = \App\Models\Review::updateOrCreate(
+            [
+                'product_id' => $product->id,
+                'user_id'    => $user->id,
+            ],
+            [
+                'rating'     => $request->rating,
+                'review'     => $request->review,
+                'ip_address' => $request->ip(),
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Product review submitted successfully',
+            'data'    => $review,
+        ]);
+    }
+
+
 
 
 
