@@ -18,6 +18,7 @@ use App\Models\ProductInterested;
 use App\Models\Wishlist;
 use App\Notifications\ShopFollowNotification;
 // use Illuminate\Support\Facades\Notification;
+use App\Helpers\FcmHelper;
 
 class ShopController extends Controller
 {
@@ -176,35 +177,73 @@ class ShopController extends Controller
 
         $shop->followers()->syncWithoutDetaching([$request->user()->id]);
         
+        $recipient = $shop->user;
          // ✅ Create notification record manually
+        $notificationText = "{$user->username} followed your shop \"{$shop->name}\"";
+
+        // ✅ Save notification in DB
         Notification::create([
             'type' => 'shop_follow',
-            'notifiable_type' => get_class($shop->user),
-            'notifiable_id' => $shop->user->id,
+            'notifiable_type' => get_class($recipient),
+            'notifiable_id' => $recipient->id,
             'data' => [
                 'type' => 'shop_follow',
                 'shop_id' => $shop->id,
                 'shop_name' => $shop->name,
                 'follower_id' => $user->id,
                 'follower_username' => $user->username,
-                'message' => "{$user->username} followed your shop \"{$shop->name}\"",
+                'message' => $notificationText,
             ],
         ]);
 
 
         // ✅ Send realtime push manually via your existing helper
-        $channel = "private-user-{$shop->user->id}";
-        $event = "shop-follow";
-        $payload = [
-            'type' => 'shop_follow',
-            'shop_id' => $shop->id,
-            'shop_name' => $shop->name,
-            'follower_id' => $user->id,
-            'follower_username' => $user->username,
-            'message' => "{$user->username} followed your shop \"{$shop->name}\"",
-        ];
+        PusherHelper::trigger(
+            "private-notifications.{$recipient->id}",
+            'shop-follow',
+            [
+                'type' => 'shop_follow',
+                'title' => 'New Follower',
+                'body' => $notificationText,
+                'shop' => [
+                    'id' => $shop->id,
+                    'name' => $shop->name,
+                    'slug' => $shop->slug,
+                    'image' => $shop->image_url,
+                ],
+                'sender' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                ],
+            ]
+        );
 
-        PusherHelper::trigger($channel, $event, $payload);
+        // ✅ FCM push
+        if (!empty($recipient->fcm_token)) {
+            FcmHelper::send(
+                $recipient,
+                'New Follower',
+                $notificationText,
+                [
+                    'type' => 'shop_follow',
+                    'shop' => [
+                        'id' => $shop->id,
+                        'name' => $shop->name,
+                        'slug' => $shop->slug,
+                        'image' => $shop->image_url,
+                    ],
+                    'sender' => [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                        'avatar' => $user->avatar,
+                    ],
+                ],
+                $shop->id,
+                'shop_follow'
+            );
+        }
+
 
         return response()->json(['message' => 'Followed shop']);
     }
@@ -218,34 +257,72 @@ class ShopController extends Controller
 
         $user = $request->user();
         
-        // ✅ Create notification record manually
+        $recipient = $shop->user;
+
+        $notificationText = "{$user->username} unfollowed your shop \"{$shop->name}\"";
+
+        // ✅ DB notification
         Notification::create([
             'type' => 'shop_unfollow',
-            'notifiable_type' => get_class($shop->user),
-            'notifiable_id' => $shop->user->id,
+            'notifiable_type' => get_class($recipient),
+            'notifiable_id' => $recipient->id,
             'data' => [
                 'type' => 'shop_unfollow',
                 'shop_id' => $shop->id,
                 'shop_name' => $shop->name,
                 'follower_id' => $user->id,
                 'follower_username' => $user->username,
-                'message' => "{$user->username} unfollowed your shop \"{$shop->name}\"",
+                'message' => $notificationText,
             ],
         ]);
 
         // ✅ Send realtime push manually via your existing helper
-        $channel = "private-user-{$shop->user->id}";
-        $event = "shop-follow";
-        $payload = [
-            'type' => 'shop_follow',
-            'shop_id' => $shop->id,
-            'shop_name' => $shop->name,
-            'follower_id' => $user->id,
-            'follower_username' => $user->username,
-            'message' => "{$user->username} followed your shop \"{$shop->name}\"",
-        ];
+        PusherHelper::trigger(
+            "private-notifications.{$recipient->id}",
+            'shop-unfollow',
+            [
+                'type' => 'shop_unfollow',
+                'title' => 'Shop Unfollowed',
+                'body' => $notificationText,
+                'shop' => [
+                    'id' => $shop->id,
+                    'name' => $shop->name,
+                    'slug' => $shop->slug,
+                    'image' => $shop->image_url,
+                ],
+                'sender' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'avatar' => $user->avatar,
+                ],
+            ]
+        );
 
-        PusherHelper::trigger($channel, $event, $payload);
+        // ✅ FCM
+        if (!empty($recipient->fcm_token)) {
+            FcmHelper::send(
+                $recipient,
+                'Shop Unfollowed',
+                $notificationText,
+                [
+                    'type' => 'shop_unfollow',
+                    'shop' => [
+                        'id' => $shop->id,
+                        'name' => $shop->name,
+                        'slug' => $shop->slug,
+                        'image' => $shop->image_url,
+                    ],
+                    'sender' => [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                        'avatar' => $user->avatar,
+                    ],
+                ],
+                $shop->id,
+                'shop_unfollow'
+            );
+        }
+
 
         return response()->json(['message' => 'Unfollowed shop']);
     }
