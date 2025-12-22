@@ -94,4 +94,11 @@ class Shop extends Model
             return false;
         }
     }
+
+    public function soldOrderProducts()
+    {
+        return $this->hasMany(OrderProduct::class, 'seller_id', 'user_id')
+            ->where('order_status', 'paid');
+    }
+
 }

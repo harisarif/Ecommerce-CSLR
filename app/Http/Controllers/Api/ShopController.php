@@ -12,6 +12,7 @@ use Illuminate\Validation\Rule;
 use App\Helpers\PusherHelper;
 use App\Models\Notification;
 use App\Models\Offer;
+use App\Models\OrderProduct;
 use App\Models\Product;
 use App\Models\ProductInterested;
 use App\Models\Wishlist;
@@ -107,11 +108,28 @@ class ShopController extends Controller
             return response()->json(['message' => 'Shop not found'], 404);
         }
 
+           // 🔹 Sold products (paid orders only)
+        $soldProducts = $shop->soldOrderProducts->map(function ($op) {
+            return [
+                'product_id' => $op->product_id,
+                'title' => $op->product_title,
+                'price' => $op->product_unit_price,
+                'quantity' => $op->product_quantity,
+                'total_price' => $op->product_total_price,
+                'currency' => $op->product_currency,
+                'sold_at' => $op->created_at,
+            ];
+        });
+
         return response()->json([
             'data' => $shop,
             'followers_count' => $shop->followers_count,
             'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
             'reviews_count' => $shop->reviews_count, // ✅ directly from withCount
+
+            // ✅ NEW
+            'sold_products_count' => $soldProducts->count(),
+            // 'sold_products' => $soldProducts,
         ]);
     }
 
@@ -410,6 +428,30 @@ class ShopController extends Controller
 
 
 
+    public function likedProductsOfShop(Request $request, $shopId)
+    {
+        $user = $request->user();
+
+        $shop = Shop::findOrFail($shopId);
+
+        // Products of this shop that THIS user has wishlisted
+        $products = Product::where('shop_id', $shop->id)
+            ->whereHas('wishlistedBy', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->with([
+                'shop:id,name',
+            ])
+            ->select('id', 'shop_id', 'slug', 'price')
+            ->get();
+
+        return response()->json([
+            'shop_id'   => $shop->id,
+            'shop_name' => $shop->name,
+            'total'     => $products->count(),
+            'data'      => $products,
+        ]);
+    }
 
 
 

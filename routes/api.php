@@ -114,6 +114,7 @@ Route::prefix('v1')->group(function () {
             Route::post('{id}/unfollow', [ShopController::class, 'unfollow']);
             Route::get('{id}/is-following', [ShopController::class, 'isFollowing']);
             Route::get('{id}/product-reviews', [ShopController::class, 'shopProductReviews']);
+            Route::get('{id}/liked-products', [ShopController::class, 'likedProductsOfShop']);
         });   
 
         // Offers
