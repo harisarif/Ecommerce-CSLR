@@ -91,8 +91,9 @@ class ShopController extends Controller
 
 
     // public shop page by id (or slug)
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $user = $request->user();
         $shop = is_numeric($id)
             ? Shop::with('products')
                 ->withCount(['followers', 'reviews']) // ✅ include reviews_count directly
@@ -123,6 +124,8 @@ class ShopController extends Controller
 
         return response()->json([
             'data' => $shop,
+            // ✅ FOLLOW INFO
+            'is_followed' => $shop->isFollowedBy($user),
             'followers_count' => $shop->followers_count,
             'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
             'reviews_count' => $shop->reviews_count, // ✅ directly from withCount

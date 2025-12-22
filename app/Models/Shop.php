@@ -100,5 +100,15 @@ class Shop extends Model
         return $this->hasMany(OrderProduct::class, 'seller_id', 'user_id')
             ->where('order_status', 'paid');
     }
+    public function isFollowedBy(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        return $this->followers()
+            ->where('user_id', $user->id)
+            ->exists();
+    }
 
 }
