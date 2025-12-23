@@ -111,4 +111,12 @@ class Shop extends Model
             ->exists();
     }
 
+    public function followingCount(): int
+    {
+        return $this->user
+            ? $this->user->followedShops()->count()
+            : 0;
+    }
+
+
 }

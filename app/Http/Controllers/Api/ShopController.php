@@ -96,11 +96,11 @@ class ShopController extends Controller
     {
         $user = $request->user();
         $shop = is_numeric($id)
-            ? Shop::with('products')
+            ? Shop::with('products', 'user.followedShops')
                 ->withCount(['followers', 'reviews']) // ✅ include reviews_count directly
                 ->withAvg('reviews', 'rating')
                 ->find($id)
-            : Shop::with('products')
+            : Shop::with('products', 'user.followedShops')
                 ->withCount(['followers', 'reviews'])
                 ->withAvg('reviews', 'rating')
                 ->where('slug', $id)
@@ -128,6 +128,7 @@ class ShopController extends Controller
             // ✅ FOLLOW INFO
             'is_followed' => $shop->isFollowedBy($user),
             'followers_count' => $shop->followers_count,
+            'following_count' => $shop->followingCount(),
             'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
             'reviews_count' => $shop->reviews_count, // ✅ directly from withCount
 
