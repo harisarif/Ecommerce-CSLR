@@ -81,10 +81,12 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json(['message' => 'No shop found for this user'], 404);
         }
+        $followingCount = $user->followedShops()->count();
 
         return response()->json([
             'data' => $shop,
             'followers_count' => $shop->followers_count,
+            'following_count' => $followingCount,
             'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
             'reviews_count' => $shop->reviews_count,
         ]);
