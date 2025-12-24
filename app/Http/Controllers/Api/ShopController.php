@@ -177,6 +177,13 @@ class ShopController extends Controller
         $user = $request->user();
 
         $shop = Shop::findOrFail($id);
+        
+        // ❌ Prevent following own shop
+        if ($shop->user_id === $user->id) {
+            return response()->json([
+                'message' => 'You cannot follow your own shop'
+            ], 403);
+        }
 
         $shop->followers()->syncWithoutDetaching([$request->user()->id]);
         
@@ -259,6 +266,13 @@ class ShopController extends Controller
         $shop->followers()->detach($request->user()->id);
 
         $user = $request->user();
+            // ❌ Prevent unfollowing own shop
+        if ($shop->user_id === $user->id) {
+            return response()->json([
+                'message' => 'You cannot unfollow your own shop'
+            ], 403);
+        }
+
         
         $recipient = $shop->user;
 
