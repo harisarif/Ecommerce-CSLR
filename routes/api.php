@@ -105,6 +105,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/vacation-mode', [ShopController::class, 'toggleVacationMode']);
             Route::get('/my-shop', [ShopController::class, 'myShop']);
             Route::get('/list', [ShopController::class, 'shopsList']);
+            Route::get('/share-link', [ShopController::class, 'shareLink']);
             Route::get('/{id}', [ShopController::class, 'show']);
 
 

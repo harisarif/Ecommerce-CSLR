@@ -573,6 +573,27 @@ class ShopController extends Controller
         ]);
     }
 
+    public function shareLink(Request $request)
+    {
+        $user = $request->user();
+        $shop = Shop::where('user_id', $user->id)->first();
+
+        if (!$shop) {
+            return response()->json([
+                'message' => 'Shop not found'
+            ], 404);
+        }
+
+        // Public shareable link
+        $shareLink = config('app.frontend_url') . '/api/v1/shop/' . $shop->id;
+
+        return response()->json([
+            'shop_id' => $shop->id,
+            'share_link' => $shareLink
+        ]);
+    }
+
+
 
 
 
