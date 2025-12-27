@@ -21,11 +21,18 @@ class Shop extends Model
         'image',
         'stripe_account_id',
         'platform_commission_percent',
+        'vacation_mode',
     ];
 
     protected $casts = [
         'settings' => 'array',
+        'vacation_mode' => 'boolean',
     ];
+
+    public function scopeActive($query)
+    {
+        return $query->where('vacation_mode', false);
+    }
 
     // owner
     public function user()

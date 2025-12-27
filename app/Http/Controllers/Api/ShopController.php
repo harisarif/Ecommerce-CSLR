@@ -550,6 +550,29 @@ class ShopController extends Controller
         ]);
     }
 
+    public function toggleVacationMode(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'vacation_mode' => 'required|boolean',
+        ]);
+
+        $shop = Shop::where('user_id', $user->id)->firstOrFail();
+
+        $shop->update([
+            'vacation_mode' => $data['vacation_mode'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'vacation_mode' => $shop->vacation_mode,
+            'message' => $shop->vacation_mode
+                ? 'Vacation mode enabled'
+                : 'Vacation mode disabled',
+        ]);
+    }
+
 
 
 

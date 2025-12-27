@@ -440,4 +440,11 @@ class Product extends Model
         return $this->hasMany(OrderProduct::class);
     }
 
+    public function scopeFromActiveShops($query)
+    {
+        return $query->whereHas('shop', function ($q) {
+            $q->where('vacation_mode', false);
+        });
+    }
+
 }

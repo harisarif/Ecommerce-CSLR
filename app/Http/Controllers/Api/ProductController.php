@@ -407,6 +407,7 @@ class ProductController extends Controller
 
         // Base query
         $productsQuery = Product::query()
+            ->fromActiveShops()
             ->with([
                 'details',
                 'brand:id,name',

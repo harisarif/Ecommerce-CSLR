@@ -102,6 +102,7 @@ Route::prefix('v1')->group(function () {
         // Shops
         Route::prefix('shop')->group(function () {
             Route::post('/create', [ShopController::class, 'store']);
+            Route::post('/vacation-mode', [ShopController::class, 'toggleVacationMode']);
             Route::get('/my-shop', [ShopController::class, 'myShop']);
             Route::get('/list', [ShopController::class, 'shopsList']);
             Route::get('/{id}', [ShopController::class, 'show']);

@@ -73,14 +73,21 @@ class AppCategory extends Model
 
     public function getTotalProductsAttribute()
     {
-        // Count products of this category
-        $count = $this->products()->count();
+        // Count products of this category (NON-vacation shops only)
+        $count = $this->products()
+            ->where('status', 1)
+            ->whereHas('shop', function ($q) {
+                $q->where('vacation_mode', false);
+            })
+            ->count();
 
-        // Recursively count products of children
+        // Recursively count children products
         foreach ($this->children as $child) {
             $count += $child->total_products;
         }
 
         return $count;
     }
+
+    
 }

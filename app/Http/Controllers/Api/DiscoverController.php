@@ -70,13 +70,22 @@ class DiscoverController extends Controller
         });
 
 
-        $brands = Brand::withCount('products')->get();
+        $brands = Brand::withCount(['products' => function ($q) {
+            $q->whereHas('shop', function ($s) {
+                $s->where('vacation_mode', false);
+            });
+        }])
+        ->get();
+
         $brands->prepend([
             'id'    => 0,
             'name'  => 'All Brands',
-            'products_count' => Product::count(), // TOTAL products
+            'products_count' => Product::whereHas('shop', fn ($q) => $q->where('vacation_mode', false))->count(), // TOTAL products
         ]);
-        $sizes  = Size::withCount('products')->get();
+        $sizes = Size::withCount(['products' => function ($q) {
+        $q->whereHas('shop', fn ($s) => $s->where('vacation_mode', false));
+        }])
+        ->get();
 
         $colorMap = collect(config('colors'))
             ->mapWithKeys(function ($hex, $name) {
@@ -88,7 +97,8 @@ class DiscoverController extends Controller
         $colors = ProductAttribute::select('value as name', DB::raw('COUNT(DISTINCT product_id) as count'))
             ->where('type', 'color')
             ->whereHas('product', function ($q) {
-                $q->where('status', 1);
+                $q->where('status', 1)
+                 ->whereHas('shop', fn ($s) => $s->where('vacation_mode', false));
             })
             ->groupBy('value')
             ->get()
@@ -105,7 +115,8 @@ class DiscoverController extends Controller
                 $count = ProductAttribute::where('type', 'style')
                     ->where('value', $style->name)
                     ->whereHas('product', function ($q) {
-                        $q->where('status', 1);
+                        $q->where('status', 1)
+                         ->whereHas('shop', fn ($s) => $s->where('vacation_mode', false));
                     })
                     ->distinct('product_id')
                     ->count('product_id');
@@ -123,7 +134,8 @@ class DiscoverController extends Controller
                 $count = ProductAttribute::where('type', 'body_fit')
                     ->where('value', $fit->name)
                     ->whereHas('product', function ($q) {
-                        $q->where('status', 1);
+                        $q->where('status', 1)
+                         ->whereHas('shop', fn ($s) => $s->where('vacation_mode', false));
                     })
                     ->distinct('product_id')
                     ->count('product_id');
@@ -136,8 +148,8 @@ class DiscoverController extends Controller
 
 
         $priceRange = [
-            'min' => Product::min('price'),
-            'max' => Product::max('price'),
+            'min' => Product::whereHas('shop', fn ($q) => $q->where('vacation_mode', false))->min('price'),
+            'max' => Product::whereHas('shop', fn ($q) => $q->where('vacation_mode', false))->max('price'),
         ];
 
         return response()->json([
@@ -164,7 +176,7 @@ class DiscoverController extends Controller
             'appCategory:id,slug',
             'productSizes.size',
             'attributes',
-        ]);
+        ])->fromActiveShops();
 
         // Category filter including all descendants
         if ($request->filled('category_id')) {
