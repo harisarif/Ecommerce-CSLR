@@ -30,9 +30,18 @@ class CartController extends Controller
 
         // Optionally group by shop for frontend
         $grouped = collect($cart->products_data ?? [])->groupBy('shop_id')->map(function ($items) {
+            $shopId = $items->first()['shop_id'];
+            $shopName = $items->first()['shop_name'];
+
+            // 🔹 Fetch rating stats for this shop
+            $ratingStats = \App\Models\Review::whereHas('product', function ($q) use ($shopId) {
+                $q->where('shop_id', $shopId);
+            })->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')->first();
             return [
                 'shop_id' => $items->first()['shop_id'],
                 'shop_name' => $items->first()['shop_name'],
+                 'average_rating' => $ratingStats->avg_rating ? round($ratingStats->avg_rating, 1) : 0,
+                'total_reviews' => $ratingStats->total_reviews ?? 0,
                 'products' => $items->values(),
                 'subtotal' => $items->sum('total_price'),
             ];
@@ -198,7 +207,7 @@ class CartController extends Controller
     // }
 
 
-        public function checkout(Request $request)
+    public function checkout(Request $request)
     {
         $request->validate([
             'cart_id' => 'required|string',

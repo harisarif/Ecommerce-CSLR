@@ -19,6 +19,7 @@ use App\Models\Wishlist;
 use App\Notifications\ShopFollowNotification;
 // use Illuminate\Support\Facades\Notification;
 use App\Helpers\FcmHelper;
+use App\Models\Review;
 
 class ShopController extends Controller
 {
@@ -81,6 +82,18 @@ class ShopController extends Controller
         if (!$shop) {
             return response()->json(['message' => 'No shop found for this user'], 404);
         }
+
+        $ratingStats = Review::whereHas('product', function ($q) use ($shop) {
+            $q->where('shop_id', $shop->id);
+        })
+        ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')
+        ->first();
+
+        $averageRating = $ratingStats->avg_rating
+            ? round($ratingStats->avg_rating, 1)
+            : 0;
+
+        $reviewsCount = $ratingStats->total_reviews ?? 0;
         $followingCount = $user->followedShops()->count();
 
         return response()->json([
@@ -89,6 +102,11 @@ class ShopController extends Controller
             'following_count' => $followingCount,
             'average_rating' => $shop->reviews_avg_rating ? round($shop->reviews_avg_rating, 1) : null,
             'reviews_count' => $shop->reviews_count,
+            'shop_rating' => [
+                'average' => $averageRating,
+                'total_reviews' => $reviewsCount,
+            ],
+
         ]);
     }
 
@@ -112,7 +130,21 @@ class ShopController extends Controller
             return response()->json(['message' => 'Shop not found'], 404);
         }
 
-           // 🔹 Sold products (paid orders only)
+        
+       // ⭐ PRODUCT-BASED SHOP RATING (Scenario 2)
+        $ratingStats = Review::whereHas('product', function ($q) use ($shop) {
+            $q->where('shop_id', $shop->id);
+        })
+        ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')
+        ->first();
+
+        $averageRating = $ratingStats->avg_rating
+            ? round($ratingStats->avg_rating, 1)
+            : 0;
+
+        $reviewsCount = $ratingStats->total_reviews ?? 0;
+
+        // 🔹 Sold products (paid orders only)
         $soldProducts = $shop->soldOrderProducts->map(function ($op) {
             return [
                 'product_id' => $op->product_id,
@@ -137,6 +169,11 @@ class ShopController extends Controller
             // ✅ NEW
             'sold_products_count' => $soldProducts->count(),
             // 'sold_products' => $soldProducts,
+              // ✅ RATING FROM PRODUCT REVIEWS
+            'shop_rating' => [
+                'average' => $averageRating,
+                'total_reviews' => $reviewsCount,
+            ],
         ]);
     }
 
@@ -415,6 +452,18 @@ class ShopController extends Controller
             ->select('id', 'name')
             ->orderBy('id', 'asc')
             ->get();
+
+        // 🔹 Add shop rating info
+        $shopsWithRating = $shops->map(function ($shop) {
+            $ratingStats = Review::whereHas('product', function ($q) use ($shop) {
+                $q->where('shop_id', $shop->id);
+            })->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')->first();
+
+            $shop->average_rating = $ratingStats->avg_rating ? round($ratingStats->avg_rating, 1) : 0;
+            $shop->total_reviews = $ratingStats->total_reviews ?? 0;
+
+            return $shop;
+        });
 
         return response()->json([
             'message' => 'Shops fetched successfully',

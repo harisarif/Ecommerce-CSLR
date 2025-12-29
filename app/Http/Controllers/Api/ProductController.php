@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductInterested;
+use App\Models\Review;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use App\Models\Wishlist;
@@ -474,6 +475,21 @@ class ProductController extends Controller
             ], 404);
         }
 
+        $shop = $product->shop;
+
+        // ⭐ SCENARIO 2: SHOP RATING FROM PRODUCT REVIEWS
+        $ratingStats = Review::whereHas('product', function ($q) use ($shop) {
+            $q->where('shop_id', $shop->id);
+        })
+        ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')
+        ->first();
+
+        $shopAverageRating = $ratingStats->avg_rating
+            ? round($ratingStats->avg_rating, 1)
+            : 0;
+
+        $shopReviewsCount = $ratingStats->total_reviews ?? 0;
+
         if ($user && $product->user_id != $user->id) {
 
             ProductInterested::updateOrCreate(
@@ -526,6 +542,10 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'data' => $product,
+            'shop_rating' => [
+                'average' => $shopAverageRating,
+                'total_reviews' => $shopReviewsCount,
+            ],
             'related_products' => $relatedProducts,
             'suggested_prices' => $suggestedPrices,
             'isSeller' => $isSeller, // ✅ Added flag
