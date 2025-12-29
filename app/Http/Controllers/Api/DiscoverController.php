@@ -178,27 +178,42 @@ class DiscoverController extends Controller
             'attributes',
         ])->fromActiveShops();
 
-        // Category filter including all descendants
-        if ($request->filled('category_id')) {
-            $category = AppCategory::with('children.children.children')->find($request->category_id);
+        // ✅ Category filter (MULTIPLE IDs + smart parent/child handling)
+        if ($request->filled('category_ids')) {
 
-            if ($category) {
-                $categoryIds = collect([$category->id]);
+            $inputCategoryIds = (array) $request->category_ids;
 
-                // Recursive ID collector
-                $collect = function ($children) use (&$collect, &$categoryIds) {
-                    foreach ($children as $child) {
-                        $categoryIds->push($child->id);
-                        if ($child->children->count()) {
-                            $collect($child->children);
-                        }
+            // Load categories with children
+            $categories = AppCategory::with('children.children.children')
+                ->whereIn('id', $inputCategoryIds)
+                ->get();
+
+            $finalCategoryIds = collect();
+
+            // Recursive function to collect all child IDs
+            $collectChildren = function ($category) use (&$collectChildren, &$finalCategoryIds) {
+                foreach ($category->children as $child) {
+                    $finalCategoryIds->push($child->id);
+
+                    if ($child->children->count()) {
+                        $collectChildren($child);
                     }
-                };
+                }
+            };
 
-                $collect($category->children);
+            foreach ($categories as $category) {
 
-                $query->whereIn('app_category_id', $categoryIds->unique());
+                // Always include the selected category itself
+                $finalCategoryIds->push($category->id);
+
+                // If category has children → include descendants
+                if ($category->children->count()) {
+                    $collectChildren($category);
+                }
+                // If NO children → leaf category → only itself (already added)
             }
+
+            $query->whereIn('app_category_id', $finalCategoryIds->unique());
         }
 
 
