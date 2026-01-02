@@ -293,4 +293,25 @@ class CartController extends Controller
             'products' => $cart->products_data,
         ]);
     }
+
+
+    public function cartCount(Request $request)
+    {
+        $user = $request->user();
+
+        // Get latest active cart
+        $cart = Cart::where('customer_id', $user->id)
+            ->latest('updated_at')
+            ->first();
+
+        $count = ($cart && !empty($cart->products_data))
+            ? collect($cart->products_data)->sum('quantity')
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'cart_count' => $count,
+        ]);
+    }
+
 }

@@ -82,6 +82,7 @@ Route::prefix('v1')->group(function () {
 
         Route::prefix('cart')->group(function () {
             Route::get('/index', [CartController::class, 'index']);
+            Route::get('/count', [CartController::class, 'cartCount']);
             Route::post('/add', [CartController::class, 'add']);
             Route::delete('/remove', [CartController::class, 'remove']);
             Route::delete('/clear', [CartController::class, 'clear']);
