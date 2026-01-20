@@ -49,6 +49,53 @@ class StripeConnectController extends Controller
         ]);
     }
 
+
+
+
+    public function getOnboardingUrl(Request $request)
+    {
+        $user = $request->user();
+
+        $shop = Shop::where('user_id', $user->id)->first();
+
+        if (!$shop || !$shop->stripe_account_id) {
+            return response()->json([
+                'message' => 'Stripe account not found'
+            ], 404);
+        }
+
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        // Retrieve account to check onboarding status
+        $account = \Stripe\Account::retrieve($shop->stripe_account_id);
+
+        if (
+            $account->charges_enabled &&
+            $account->payouts_enabled &&
+            empty($account->requirements->currently_due)
+        ) {
+            return response()->json([
+                'onboarding_required' => false,
+                'message' => 'Stripe onboarding already completed'
+            ]);
+        }
+
+        // Only generate onboarding link, do NOT create account
+        $accountLink = \Stripe\AccountLink::create([
+            'account' => $shop->stripe_account_id,
+            'type' => 'account_onboarding',
+            'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh?shop_id=' . $shop->id,
+            'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete?shop_id=' . $shop->id,
+        ]);
+
+        return response()->json([
+            'onboarding_required' => true,
+            'url' => $accountLink->url,
+        ]);
+    }
+
+
+
     public function getOnboardingStatus(Request $request)
     {
         $user = $request->user();

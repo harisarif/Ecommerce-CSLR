@@ -19,6 +19,8 @@ use App\Models\UserBrand;
 use App\Models\UserSize;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
+use Stripe\Stripe;
+
 
 class AuthController extends Controller
 {
@@ -120,40 +122,40 @@ class AuthController extends Controller
         $user = User::where('email', $record->email)->first();
 
 
-    if ($user) {
-        if ($request->filled('fcm_token')) {
-            $user->fcm_token = $request->fcm_token;
-            $user->save();
+        if ($user) {
+            if ($request->filled('fcm_token')) {
+                $user->fcm_token = $request->fcm_token;
+                $user->save();
 
-            \Log::info("📲 FCM Token Saved in emailLoginVerify", [
-                'email' => $user->email,
-                'fcm_token' => $request->fcm_token
-            ]);
-        } else {
-            \Log::warning("⚠ No FCM token received in emailLoginVerify", [
+                \Log::info("📲 FCM Token Saved in emailLoginVerify", [
+                    'email' => $user->email,
+                    'fcm_token' => $request->fcm_token
+                ]);
+            } else {
+                \Log::warning("⚠ No FCM token received in emailLoginVerify", [
+                    'email' => $user->email
+                ]);
+            }
+
+            $apiToken = JWTAuth::fromUser($user);
+            $record->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'token' => $apiToken,
                 'email' => $user->email
             ]);
+        } else {
+
+            \Log::info("🆕 New user verified — pending registration", [
+                'email' => $record->email
+            ]);
+
+            return response()->json([
+                'status' => 'new_user',
+                'email' => $record->email
+            ]);
         }
-
-        $apiToken = JWTAuth::fromUser($user);
-        $record->delete();
-
-        return response()->json([
-            'status' => 'success',
-            'token' => $apiToken,
-            'email' => $user->email
-        ]);
-    } else {
-
-        \Log::info("🆕 New user verified — pending registration", [
-            'email' => $record->email
-        ]);
-
-        return response()->json([
-            'status' => 'new_user',
-            'email' => $record->email
-        ]);
-    }
 
         // if ($user) {
         //     $apiToken = $user->createToken('auth-token')->plainTextToken;
@@ -237,6 +239,32 @@ class AuthController extends Controller
             'address'     => $user->billing_address,
             'settings'    => [],
         ]);
+
+        // ================== STRIPE EXPRESS ACCOUNT CREATION ==================
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        try {
+            $account = \Stripe\Account::create([
+                'type' => 'express',
+                'country' => env('STRIPE_COUNTRY', 'AE'), // change if needed
+                'email' => $user->email,
+                'metadata' => [
+                    'user_id' => $user->id,
+                    'shop_id' => $shop->id,
+                ],
+            ]);
+
+            // Save Stripe account ID in shop
+            $shop->stripe_account_id = $account->id;
+            $shop->save();
+
+        } catch (\Exception $e) {
+            // Optional: log error (DO NOT block signup)
+            \Log::error('Stripe account creation failed', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+            ]);
+        }
         // Save sizes (store IDs)
         if ($request->has('sizes')) {
             foreach ($request->sizes as $sizeData) {

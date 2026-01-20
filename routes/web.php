@@ -8,6 +8,9 @@ use App\Models\User;
 use App\Models\Shop;
 use Stripe\Stripe;
 use Stripe\AccountLink;
+use Illuminate\Support\Facades\Artisan;
+use App\Models\PaymentTransfer;
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -260,6 +263,69 @@ Route::get('/', function () {
             'connected' => (bool) $account->charges_enabled,
         ]);
     });
+
+
+    Route::get('/run-release-hold', function () {
+        if (request('key') !== 'test123') {
+            abort(403);
+        }
+        Artisan::call('payments:release-hold');
+        return nl2br(Artisan::output());
+    });
+
+
+    
+    Route::get('/debug/payment-transfers', function () {
+
+        $transfers = PaymentTransfer::with('shop')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'count' => $transfers->count(),
+            'data' => $transfers->map(function ($t) {
+                return [
+                    'id' => $t->id,
+                    'order_id' => $t->order_id,
+                    'shop' => [
+                        'id' => $t->shop_id,
+                        'name' => optional($t->shop)->name,
+                        'stripe_account_id' => optional($t->shop)->stripe_account_id,
+                    ],
+                    'amount_cents' => $t->amount_cents,
+                    'platform_fee_cents' => $t->platform_fee_cents,
+                    'net_to_shop_cents' => $t->amount_cents - $t->platform_fee_cents,
+                    'currency' => strtoupper($t->currency),
+                    'status' => $t->status,
+                    'release_at' => optional($t->release_at)->toDateTimeString(),
+                    'stripe_transfer_id' => $t->stripe_transfer_id,
+                    'created_at' => $t->created_at->toDateTimeString(),
+                ];
+            }),
+        ]);
+    });
+
+    
+    Route::get('/debug/run-migrate', function () {
+
+        // ✅ SAFETY CHECKS (VERY IMPORTANT)
+        // abort_unless(
+        //     app()->environment(['local', 'staging']) 
+        //     || (auth()->check() && auth()->user()->is_admin),
+        //     403
+        // );
+
+        Artisan::call('migrate', [
+            '--force' => true, // required on production
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'output' => Artisan::output(),
+        ]);
+    });
+
 
 
 
