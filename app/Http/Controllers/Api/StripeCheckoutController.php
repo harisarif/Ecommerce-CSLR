@@ -411,7 +411,7 @@ class StripeCheckoutController extends Controller
 
     public function handleStripeWebhook(Request $request)
     {
-        
+        Log::info('🔥 Stripe webhook endpoint hit');
         $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
         $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
@@ -423,6 +423,10 @@ class StripeCheckoutController extends Controller
             Log::error('Stripe webhook signature verification failed: ' . $e->getMessage());
             return response('Invalid payload', 400);
         }
+
+        Log::info('📩 Stripe event received', [
+            'type' => $event->type,
+        ]);
 
         // Only handle completed checkout sessions
         if ($event->type === 'checkout.session.completed') {
@@ -437,7 +441,11 @@ class StripeCheckoutController extends Controller
 
             // Retrieve payment intent and transfer id
             $paymentIntentId = $session->payment_intent;
-            $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+            // $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+            $paymentIntent = \Stripe\PaymentIntent::retrieve(
+                $paymentIntentId,
+                ['expand' => ['charges.data']]
+            );
 
             // transfer id (Stripe automatically creates a transfer to connected account)
             $amountCents = $paymentIntent->amount_received ?? 0;
@@ -450,6 +458,14 @@ class StripeCheckoutController extends Controller
 
                 // Retrieve product models
                 $products = Product::whereIn('id', $productIds)->with('shop')->get();
+
+                if ($products->isEmpty()) {
+                    Log::error('❌ No products found for PaymentTransfer', [
+                        'metadata' => $metadata,
+                    ]);
+                    DB::rollBack();
+                    return response('No products', 200);
+                }
 
                 // If metadata has offer_id => single-offer checkout; compute price accordingly
                 $offerCounterId = $metadata['offer_counter_id'] ?? null;
@@ -510,13 +526,17 @@ class StripeCheckoutController extends Controller
 
                 // 3️⃣ HOLD PAYMENT (PaymentTransfer)
                 $charge = $paymentIntent->charges->data[0] ?? null;
+                Log::info('🟡 Creating PaymentTransfer', [
+                    'order_id' => $order->id,
+                    'amount' => $paymentIntent->amount_received,
+                ]);
                 PaymentTransfer::create([
                     'order_id' => $order->id,
                     'shop_id' => $products->first()->shop_id,
                     'payment_intent_id' => $paymentIntent->id,
                     'charge_id' => $charge?->id,
                     'amount_cents' => $paymentIntent->amount_received,
-                    'platform_fee_cents' => intval($paymentIntent->amount_received * 0.05),
+                    'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
                     'currency' => $paymentIntent->currency,
                     'status' => 'on_hold',
                     // 'release_at' => now()->addDays(7),
@@ -528,6 +548,7 @@ class StripeCheckoutController extends Controller
                         'offer_id' => $offerId,
                     ],
                 ]);
+                Log::info('🟢 PaymentTransfer created successfully');
 
                 // Create OrderProducts using finalPricesByProductId mapping
                 foreach ($products as $product) {
