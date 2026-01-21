@@ -540,8 +540,7 @@ class StripeCheckoutController extends Controller
                     'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
                     'currency' => $paymentIntent->currency,
                     'status' => 'on_hold',
-                    // 'release_at' => now()->addDays(7),
-                    'release_at' => now(),
+                    'release_at' => now()->addDays(7),
                     'meta' => [
                         'stripe_session_id' => $session->id,
                         'customer_id' => $session->customer,
