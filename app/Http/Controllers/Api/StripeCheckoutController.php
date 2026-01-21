@@ -412,6 +412,7 @@ class StripeCheckoutController extends Controller
     public function handleStripeWebhook(Request $request)
     {
         Log::info('🔥 Stripe webhook endpoint hit');
+        Stripe::setApiKey(env('STRIPE_SECRET'));
         $endpoint_secret = env('STRIPE_WEBHOOK_SECRET');
         $payload = $request->getContent();
         $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
