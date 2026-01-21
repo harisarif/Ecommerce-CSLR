@@ -174,43 +174,43 @@ Route::get('/', function () {
     // });
 
 
-    Route::get('/fix-missing-shops', function () {
+    // Route::get('/fix-missing-shops', function () {
 
-        $usersWithoutShop = User::doesntHave('shop')->get();
+    //     $usersWithoutShop = User::doesntHave('shop')->get();
 
-        $created = [];
+    //     $created = [];
 
-        foreach ($usersWithoutShop as $user) {
+    //     foreach ($usersWithoutShop as $user) {
 
-            $shopName = $user->first_name . "'s Shop";
-            $slug = Str::slug($shopName);
+    //         $shopName = $user->first_name . "'s Shop";
+    //         $slug = Str::slug($shopName);
 
-            if (Shop::where('slug', $slug)->exists()) {
-                $slug .= '-' . Str::random(5);
-            }
+    //         if (Shop::where('slug', $slug)->exists()) {
+    //             $slug .= '-' . Str::random(5);
+    //         }
 
-            $shop = Shop::create([
-                'user_id'     => $user->id,
-                'name'        => $shopName,
-                'slug'        => $slug,
-                'description' => 'Welcome to ' . $shopName . '!',
-                'phone'       => null,
-                'address'     => $user->billing_address,
-                'settings'    => [],
-            ]);
+    //         $shop = Shop::create([
+    //             'user_id'     => $user->id,
+    //             'name'        => $shopName,
+    //             'slug'        => $slug,
+    //             'description' => 'Welcome to ' . $shopName . '!',
+    //             'phone'       => null,
+    //             'address'     => $user->billing_address,
+    //             'settings'    => [],
+    //         ]);
 
-            $created[] = [
-                'user_id' => $user->id,
-                'shop_id' => $shop->id,
-                'created_shop' => $shopName
-            ];
-        }
+    //         $created[] = [
+    //             'user_id' => $user->id,
+    //             'shop_id' => $shop->id,
+    //             'created_shop' => $shopName
+    //         ];
+    //     }
 
-        return response()->json([
-            'total_fixed' => count($created),
-            'details' => $created,
-        ]);
-    });
+    //     return response()->json([
+    //         'total_fixed' => count($created),
+    //         'details' => $created,
+    //     ]);
+    // });
 
 
     Route::get('stripe/onboard/refresh', function (Request $request) {
@@ -304,6 +304,99 @@ Route::get('/', function () {
                 ];
             }),
         ]);
+    });
+
+
+    Route::get('/debug/payment-transfers-html', function () {
+
+            $transfers = PaymentTransfer::with(['shop', 'order'])
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get();
+
+            return response()->make('
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Payment Transfers Debug</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+
+            <!-- Bootstrap 5 CDN -->
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+            <style>
+                body { background: #f8f9fa; }
+                table { font-size: 14px; }
+                th { white-space: nowrap; }
+                td { vertical-align: middle; }
+                .badge { font-size: 12px; }
+                .code { font-family: monospace; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+
+        <div class="container-fluid py-4">
+            <h3 class="mb-3">💳 Payment Transfers Debug</h3>
+            <p class="text-muted">Showing latest 50 records</p>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Order</th>
+                            <th>Shop</th>
+                            <th>Stripe Account</th>
+                            <th>Payment Intent</th>
+                            <th>Charge</th>
+                            <th>Transfer</th>
+                            <th>Amount</th>
+                            <th>Platform Fee</th>
+                            <th>Net to Shop</th>
+                            <th>Currency</th>
+                            <th>Status</th>
+                            <th>Release At</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    ' . $transfers->map(function ($t) {
+
+                        $statusBadge = match ($t->status) {
+                            "on_hold" => "warning",
+                            "released" => "success",
+                            "failed" => "danger",
+                            default => "secondary",
+                        };
+
+                        return '
+                        <tr>
+                            <td>#' . $t->id . '</td>
+                            <td>' . ($t->order_id ?? '-') . '</td>
+                            <td>' . optional($t->shop)->name . '</td>
+                            <td class="code">' . optional($t->shop)->stripe_account_id . '</td>
+                            <td class="code">' . ($t->payment_intent_id ?? '-') . '</td>
+                            <td class="code">' . ($t->charge_id ?? '-') . '</td>
+                            <td class="code">' . ($t->stripe_transfer_id ?? '-') . '</td>
+                            <td>' . number_format($t->amount_cents / 100, 2) . '</td>
+                            <td>' . number_format($t->platform_fee_cents / 100, 2) . '</td>
+                            <td><strong>' . number_format(($t->amount_cents - $t->platform_fee_cents) / 100, 2) . '</strong></td>
+                            <td>' . strtoupper($t->currency) . '</td>
+                            <td><span class="badge bg-' . $statusBadge . '">' . strtoupper($t->status) . '</span></td>
+                            <td>' . optional($t->release_at)->toDateTimeString() . '</td>
+                            <td>' . $t->created_at->toDateTimeString() . '</td>
+                        </tr>';
+
+                    })->implode('') . '
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        </body>
+        </html>
+        ');
     });
 
     
