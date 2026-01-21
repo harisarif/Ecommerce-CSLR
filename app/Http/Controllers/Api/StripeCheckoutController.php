@@ -531,17 +531,39 @@ class StripeCheckoutController extends Controller
                     'order_id' => $order->id,
                     'amount' => $paymentIntent->amount_received,
                 ]);
+                $balanceTransaction = \Stripe\BalanceTransaction::retrieve(
+                    $charge->balance_transaction
+                );
+
+                $platformFeePercent = floatval(env('PLATFORM_FEE_PERCENT', 5));
+                $platformFeeCents = intval(
+                    round($balanceTransaction->amount * ($platformFeePercent / 100))
+                );
+
+                $netToShopCents = $balanceTransaction->net - $platformFeeCents;
                 PaymentTransfer::create([
                     'order_id' => $order->id,
                     'shop_id' => $products->first()->shop_id,
+
                     'payment_intent_id' => $paymentIntent->id,
-                    'charge_id' => $charge?->id,
-                    'amount_cents' => $paymentIntent->amount_received,
-                    'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
-                    'currency' => $paymentIntent->currency,
+                    'charge_id' => $charge->id,
+
+                    // Checkout info (display)
+                    'checkout_amount_cents' => $paymentIntent->amount_received, // AED
+                    'checkout_currency' => $paymentIntent->currency,            // AED
+
+                    // Stripe balance (REAL)
+                    'gross_amount_cents' => $balanceTransaction->amount,        // USD
+                    'stripe_fee_cents' => abs($balanceTransaction->fee),         // USD
+                    'platform_fee_cents' => $platformFeeCents,                  // USD
+                    'net_amount_cents' => $netToShopCents,                       // USD
+                    'settlement_currency' => $balanceTransaction->currency,     // USD
+
+                    'exchange_rate' => $balanceTransaction->exchange_rate,
+
                     'status' => 'on_hold',
-                    // 'release_at' => now()->addDays(7),
-                    'release_at' => now(),
+                    'release_at' => now()->addDays(7),
+
                     'meta' => [
                         'stripe_session_id' => $session->id,
                         'customer_id' => $session->customer,

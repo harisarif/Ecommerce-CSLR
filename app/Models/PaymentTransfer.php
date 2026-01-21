@@ -19,6 +19,17 @@ class PaymentTransfer extends Model
         'platform_fee_cents',
         'currency',
 
+        
+        // ✅ Newly added fields (from migration)
+        'checkout_amount_cents',
+        'checkout_currency',
+
+        'gross_amount_cents',
+        'stripe_fee_cents',
+        'net_amount_cents',
+        'settlement_currency',
+        'exchange_rate',
+
         // Hold logic
         'release_at',
         'status',
