@@ -526,7 +526,17 @@ class StripeCheckoutController extends Controller
 
 
                 // 3️⃣ HOLD PAYMENT (PaymentTransfer)
-                $charge = $paymentIntent->charges->data[0] ?? null;
+                $chargeId = $paymentIntent->latest_charge ?? null;
+
+                if (!$chargeId) {
+                    Log::warning('⚠️ Charge not yet available, skipping PaymentTransfer', [
+                        'payment_intent_id' => $paymentIntent->id
+                    ]);
+                    DB::commit();
+                    return response('Charge not ready', 200);
+                }
+
+                $charge = \Stripe\Charge::retrieve($chargeId);
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
                     'amount' => $paymentIntent->amount_received,
