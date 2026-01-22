@@ -526,7 +526,23 @@ class StripeCheckoutController extends Controller
 
 
                 // 3️⃣ HOLD PAYMENT (PaymentTransfer)
+                
+                $checkoutAmountCents = $session->amount_total; // AED cents
+                $checkoutCurrency = strtoupper($session->currency); // AED
                 $charge = $paymentIntent->charges->data[0] ?? null;
+
+                if (!$charge || !$charge->balance_transaction) {
+                    Log::error('❌ Missing balance transaction', [
+                        'payment_intent' => $paymentIntent->id,
+                    ]);
+                    DB::rollBack();
+                    return response('Balance transaction missing', 200);
+                }
+
+                $balanceTx = \Stripe\BalanceTransaction::retrieve(
+                    $charge->balance_transaction
+                );
+                $platformFeeCents = intval(round($balanceTx->amount * 0.05));
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
                     'amount' => $paymentIntent->amount_received,
@@ -534,13 +550,30 @@ class StripeCheckoutController extends Controller
                 PaymentTransfer::create([
                     'order_id' => $order->id,
                     'shop_id' => $products->first()->shop_id,
+
+                    // Stripe references
                     'payment_intent_id' => $paymentIntent->id,
                     'charge_id' => $charge?->id,
-                    'amount_cents' => $paymentIntent->amount_received,
-                    'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
-                    'currency' => $paymentIntent->currency,
+
+                    // 🔹 Checkout (AED – what user sees)
+                    'checkout_amount_cents' => $checkoutAmountCents, // AED
+                    'checkout_currency' => strtoupper($session->currency), // AED
+
+                    // 🔹 Stripe balance (USD – real money)
+                    'gross_amount_cents' => $balanceTx->amount,   // USD
+                    'stripe_fee_cents' => $balanceTx->fee,         // USD
+                    'net_amount_cents' => $balanceTx->net,         // USD
+                    'settlement_currency' => strtoupper($balanceTx->currency), // USD
+                    'exchange_rate' => $balanceTx->exchange_rate ?? null,
+
+                    // Keep your existing fields (BACKWARD SAFE)
+                    'amount_cents' => $checkoutAmountCents, // keep for compatibility
+                    'platform_fee_cents' => $platformFeeCents,
+                    'currency' => strtoupper($session->currency), // AED
+
                     'status' => 'on_hold',
                     'release_at' => now()->addDays(7),
+
                     'meta' => [
                         'stripe_session_id' => $session->id,
                         'customer_id' => $session->customer,
@@ -548,6 +581,24 @@ class StripeCheckoutController extends Controller
                         'offer_id' => $offerId,
                     ],
                 ]);
+
+                // PaymentTransfer::create([
+                //     'order_id' => $order->id,
+                //     'shop_id' => $products->first()->shop_id,
+                //     'payment_intent_id' => $paymentIntent->id,
+                //     'charge_id' => $charge?->id,
+                //     'amount_cents' => $paymentIntent->amount_received,
+                //     'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
+                //     'currency' => $paymentIntent->currency,
+                //     'status' => 'on_hold',
+                //     'release_at' => now()->addDays(7),
+                //     'meta' => [
+                //         'stripe_session_id' => $session->id,
+                //         'customer_id' => $session->customer,
+                //         'cart_id' => $cartId,
+                //         'offer_id' => $offerId,
+                //     ],
+                // ]);
                 Log::info('🟢 PaymentTransfer created successfully');
 
                 // Create OrderProducts using finalPricesByProductId mapping

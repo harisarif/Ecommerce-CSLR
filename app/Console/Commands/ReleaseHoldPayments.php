@@ -39,11 +39,12 @@ class ReleaseHoldPayments extends Command
                  Log::info("✅ shop data stripe id{$shop->stripe_account_id}");
 
                 // Amount in cents
-                $netAmount = $transferRecord->amount_cents - $transferRecord->platform_fee_cents;
+                // $netAmount = $transferRecord->amount_cents - $transferRecord->platform_fee_cents;
+                $netAmount = $transferRecord->net_amount_cents;
 
                 $transfer = Transfer::create([
-                    'amount' => $netAmount,
-                    'currency' => 'usd', // USD
+                    'amount' => $transferRecord->net_amount_cents, // ✅ USD cents
+                    'currency' => $transferRecord->settlement_currency, // 'usd'
                     'destination' => $shop->stripe_account_id,
                     'metadata' => [
                         'payment_transfer_id' => $transferRecord->id,
