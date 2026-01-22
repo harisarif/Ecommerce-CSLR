@@ -531,17 +531,14 @@ class StripeCheckoutController extends Controller
                 $checkoutCurrency = strtoupper($session->currency); // AED
                 $charge = $paymentIntent->charges->data[0] ?? null;
 
-                if (!$charge || !$charge->balance_transaction) {
-                    Log::error('❌ Missing balance transaction', [
-                        'payment_intent' => $paymentIntent->id,
-                    ]);
-                    DB::rollBack();
-                    return response('Balance transaction missing', 200);
+                $balanceTx = null;
+
+                if ($charge && $charge->balance_transaction) {
+                    $balanceTx = \Stripe\BalanceTransaction::retrieve(
+                        $charge->balance_transaction
+                    );
                 }
 
-                $balanceTx = \Stripe\BalanceTransaction::retrieve(
-                    $charge->balance_transaction
-                );
                 $platformFeeCents = intval(round($balanceTx->amount * 0.05));
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
@@ -551,36 +548,35 @@ class StripeCheckoutController extends Controller
                     'order_id' => $order->id,
                     'shop_id' => $products->first()->shop_id,
 
-                    // Stripe references
+                    // Stripe refs
                     'payment_intent_id' => $paymentIntent->id,
                     'charge_id' => $charge?->id,
 
-                    // 🔹 Checkout (AED – what user sees)
-                    'checkout_amount_cents' => $checkoutAmountCents, // AED
-                    'checkout_currency' => strtoupper($session->currency), // AED
+                    // Checkout (what buyer sees)
+                    'checkout_amount_cents' => $checkoutAmountCents,
+                    'checkout_currency' => strtoupper($session->currency),
 
-                    // 🔹 Stripe balance (USD – real money)
-                    'gross_amount_cents' => $balanceTx->amount,   // USD
-                    'stripe_fee_cents' => $balanceTx->fee,         // USD
-                    'net_amount_cents' => $balanceTx->net,         // USD
-                    'settlement_currency' => strtoupper($balanceTx->currency), // USD
-                    'exchange_rate' => $balanceTx->exchange_rate ?? null,
+                    // Stripe balance (MAY BE NULL NOW)
+                    'gross_amount_cents' => $balanceTx?->amount ?? 0,
+                    'stripe_fee_cents' => $balanceTx?->fee ?? 0,
+                    'net_amount_cents' => $balanceTx?->net ?? 0,
+                    'settlement_currency' => strtoupper($balanceTx?->currency ?? 'usd'),
+                    'exchange_rate' => $balanceTx?->exchange_rate ?? null,
 
-                    // Keep your existing fields (BACKWARD SAFE)
-                    'amount_cents' => $checkoutAmountCents, // keep for compatibility
-                    'platform_fee_cents' => $platformFeeCents,
-                    'currency' => strtoupper($session->currency), // AED
+                    // Backward compatibility
+                    'amount_cents' => $checkoutAmountCents,
+                    'platform_fee_cents' => intval(round($checkoutAmountCents * 0.05)),
+                    'currency' => strtoupper($session->currency),
 
                     'status' => 'on_hold',
                     'release_at' => now()->addDays(7),
 
                     'meta' => [
                         'stripe_session_id' => $session->id,
-                        'customer_id' => $session->customer,
-                        'cart_id' => $cartId,
-                        'offer_id' => $offerId,
+                        'balance_tx_pending' => $balanceTx ? false : true,
                     ],
                 ]);
+
 
                 // PaymentTransfer::create([
                 //     'order_id' => $order->id,
