@@ -36,14 +36,34 @@ class ReleaseHoldPayments extends Command
                     Log::warning("Shop not connected to Stripe: ID {$transferRecord->shop_id}");
                     continue;
                 }
+
+                 // If shop is illegal → refund instead of sending payment
+                    if ($shop && $shop->illegal) {
+                        if ($transferRecord->payment_intent_id) {
+                            \Stripe\Refund::create([
+                                'payment_intent' => $transferRecord->payment_intent_id,
+                                'reason' => 'requested_by_customer',
+                                'metadata' => [
+                                    'payment_transfer_id' => $transferRecord->id,
+                                    'shop_id' => $transferRecord->shop_id,
+                                ],
+                            ]);
+
+                            $transferRecord->status = 'refunded';
+                            $transferRecord->release_at = now();
+                            $transferRecord->save();
+
+                            Log::warning("⚠️ PaymentTransfer {$transferRecord->id} refunded due to illegal shop ID {$shop->id}");
+                        }
+                        continue; // skip sending money to illegal shop
+                    }
                  Log::info("✅ shop data stripe id{$shop->stripe_account_id}");
 
                 // Amount in cents
-                // $netAmount = $transferRecord->amount_cents - $transferRecord->platform_fee_cents;
-                $netAmount = $transferRecord->net_amount_cents;
-
+                // $netAmount = $transferRecord->net_amount_cents;
+                $amountToSend = ($transferRecord->gross_amount_cents ?? 0) - ($transferRecord->platform_fee_cents ?? 0);
                 $transfer = Transfer::create([
-                    'amount' => $transferRecord->net_amount_cents, // ✅ USD cents
+                    'amount' => $amountToSend, // ✅ USD cents
                     'currency' => $transferRecord->settlement_currency, // 'usd'
                     'destination' => $shop->stripe_account_id,
                     'metadata' => [

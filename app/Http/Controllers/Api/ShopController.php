@@ -642,7 +642,63 @@ class ShopController extends Controller
         ]);
     }
 
+    /**
+     * Mark shop as illegal
+    */
 
+    public function markIllegal(Request $request, $shopId)
+    {
+        $user = $request->user();
+
+        // ❌ Shop owners or normal users cannot do this
+        if ($user->role_id !== 1) {
+            return response()->json([
+                'message' => 'Only platform admin can mark a shop illegal'
+            ], 403);
+        }
+
+        $shop = Shop::findOrFail($shopId);
+
+        // Optional: avoid re-marking
+        if ($shop->illegal) {
+            return response()->json([
+                'message' => 'Shop is already marked as illegal'
+            ], 409);
+        }
+
+        $shop->illegal = true;
+        $shop->save();
+
+        return response()->json([
+            'message' => 'Shop marked as illegal successfully',
+            'shop_id' => $shop->id,
+            'illegal' => $shop->illegal,
+        ]);
+    }
+
+    /**
+     * Optional: revert illegal status
+    */
+    public function markLegal(Request $request, $shopId)
+    {
+        $user = $request->user();
+        $shop = Shop::findOrFail($shopId);
+
+        if ($user->role_id !== 1) {
+            return response()->json([
+                'message' => 'Only platform admin can mark a shop illegal'
+            ], 403);
+        }
+
+        $shop->illegal = false;
+        $shop->save();
+
+        return response()->json([
+            'message' => 'Shop marked as legal successfully',
+            'shop_id' => $shop->id,
+            'illegal' => $shop->illegal,
+        ]);
+    }
 
 
 

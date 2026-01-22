@@ -447,6 +447,7 @@ class StripeCheckoutController extends Controller
                 $paymentIntentId,
                 ['expand' => ['charges.data']]
             );
+            $amountCents = $paymentIntent->amount_received ?? 0;
 
             DB::beginTransaction();
             try {
@@ -543,7 +544,8 @@ class StripeCheckoutController extends Controller
                     }
                 }
 
-                $platformFeeCents = intval(round($checkoutAmountCents * 0.05));
+                $platformFeePercent = floatval(env('PLATFORM_FEE_PERCENT', 5.0)); 
+                $platformFeeCents = intval(round($checkoutAmountCents * ($platformFeePercent / 100)));
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
                     'amount' => $checkoutAmountCents,
@@ -574,7 +576,7 @@ class StripeCheckoutController extends Controller
                     'currency' => $checkoutCurrency,
 
                     'status' => 'on_hold',
-                    'release_at' => now(),
+                    'release_at' => now()->addDays(7),
 
                     'meta' => [
                         'stripe_session_id' => $session->id,
@@ -582,24 +584,6 @@ class StripeCheckoutController extends Controller
                     ],
                 ]);
 
-
-                // PaymentTransfer::create([
-                //     'order_id' => $order->id,
-                //     'shop_id' => $products->first()->shop_id,
-                //     'payment_intent_id' => $paymentIntent->id,
-                //     'charge_id' => $charge?->id,
-                //     'amount_cents' => $paymentIntent->amount_received,
-                //     'platform_fee_cents' => intval(round($paymentIntent->amount_received * 0.05)),
-                //     'currency' => $paymentIntent->currency,
-                //     'status' => 'on_hold',
-                //     'release_at' => now()->addDays(7),
-                //     'meta' => [
-                //         'stripe_session_id' => $session->id,
-                //         'customer_id' => $session->customer,
-                //         'cart_id' => $cartId,
-                //         'offer_id' => $offerId,
-                //     ],
-                // ]);
                 Log::info('🟢 PaymentTransfer created successfully');
 
                 // Create OrderProducts using finalPricesByProductId mapping
