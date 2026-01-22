@@ -448,10 +448,6 @@ class StripeCheckoutController extends Controller
                 ['expand' => ['charges.data']]
             );
 
-            // transfer id (Stripe automatically creates a transfer to connected account)
-            $amountCents = $paymentIntent->amount_received ?? 0;
-
-
             DB::beginTransaction();
             try {
                 $currency = Currency::where('status', 1)->value('code') ?? 'AED';
@@ -526,24 +522,33 @@ class StripeCheckoutController extends Controller
 
 
                 // 3️⃣ HOLD PAYMENT (PaymentTransfer)
-                
-                $checkoutAmountCents = $session->amount_total; // AED cents
-                $checkoutCurrency = strtoupper($session->currency); // AED
+            
+                $checkoutAmountCents = $session->amount_total; // AED minor units
+                $checkoutCurrency = strtoupper($session->currency);
                 $charge = $paymentIntent->charges->data[0] ?? null;
                 $balanceTx = null;
 
+                $grossAmountCents = $checkoutAmountCents;
+                $stripeFeeCents = intval(round($checkoutAmountCents * 0.029 + 30)); // fallback fee
+                $netAmountCents = $grossAmountCents - $stripeFeeCents;
+
                 if ($charge && $charge->balance_transaction) {
-                    $balanceTx = \Stripe\BalanceTransaction::retrieve(
-                        $charge->balance_transaction
-                    );
+                    try {
+                        $balanceTx = \Stripe\BalanceTransaction::retrieve($charge->balance_transaction);
+                        $grossAmountCents = $balanceTx->amount;
+                        $stripeFeeCents = $balanceTx->fee;
+                        $netAmountCents = $balanceTx->net;
+                    } catch (\Exception $e) {
+                        Log::warning('⚠️ Failed to retrieve balance transaction, using fallback: ' . $e->getMessage());
+                    }
                 }
 
-                // ✅ SAFE: based on checkout amount, NOT Stripe balance
                 $platformFeeCents = intval(round($checkoutAmountCents * 0.05));
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
-                    'amount' => $paymentIntent->amount_received,
+                    'amount' => $checkoutAmountCents,
                 ]);
+
                 PaymentTransfer::create([
                     'order_id' => $order->id,
                     'shop_id' => $products->first()->shop_id,
@@ -552,26 +557,24 @@ class StripeCheckoutController extends Controller
                     'payment_intent_id' => $paymentIntent->id,
                     'charge_id' => $charge?->id,
 
-                    // Checkout (what buyer sees)
+                    // Checkout
                     'checkout_amount_cents' => $checkoutAmountCents,
-                    'checkout_currency' => strtoupper($session->currency),
+                    'checkout_currency' => $checkoutCurrency,
 
-                    // Stripe balance (MAY BE NULL NOW)
-                    'gross_amount_cents' => $balanceTx?->amount ?? 0,
-                    'stripe_fee_cents' => $balanceTx?->fee ?? 0,
-                    'net_amount_cents' => $balanceTx?->net ?? 0,
-                    'settlement_currency' => strtoupper($balanceTx?->currency ?? 'usd'),
+                    // Stripe balance
+                    'gross_amount_cents' => $grossAmountCents,
+                    'stripe_fee_cents' => $stripeFeeCents,
+                    'net_amount_cents' => $netAmountCents,
+                    'settlement_currency' => strtoupper($balanceTx?->currency ?? $checkoutCurrency),
                     'exchange_rate' => $balanceTx?->exchange_rate ?? null,
 
                     // Backward compatibility
                     'amount_cents' => $checkoutAmountCents,
                     'platform_fee_cents' => $platformFeeCents,
-                    'currency' => strtoupper($session->currency),
+                    'currency' => $checkoutCurrency,
 
                     'status' => 'on_hold',
-                    // 'release_at' => now()->addDays(7),
                     'release_at' => now(),
-
 
                     'meta' => [
                         'stripe_session_id' => $session->id,

@@ -307,133 +307,187 @@ Route::get('/', function () {
     });
 
 
-Route::get('/debug/payment-transfers-html', function () {
+    // DELETE PaymentTransfer by ID
+Route::delete('/debug/payment-transfer/{id}', function ($id) {
+    $paymentTransfer = PaymentTransfer::find($id);
 
-    $transfers = PaymentTransfer::with(['shop', 'order'])
-        ->orderByDesc('id')
-        ->limit(50)
-        ->get();
+    if (!$paymentTransfer) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'PaymentTransfer not found'
+        ], 404);
+    }
 
-    return response()->make('
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Payment Transfers Debug</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    $paymentTransfer->delete();
 
-    <!-- Bootstrap 5 CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    return response()->json([
+        'status' => 'success',
+        'message' => "PaymentTransfer with ID $id deleted successfully"
+    ]);
+})->name('payment-transfer.delete');
 
-    <style>
-        body { background: #f8f9fa; }
-        table { font-size: 13px; }
-        th { white-space: nowrap; }
-        td { vertical-align: middle; }
-        .badge { font-size: 12px; }
-        .code { font-family: monospace; font-size: 12px; }
-        .muted { color: #6c757d; font-size: 12px; }
-    </style>
-</head>
-<body>
 
-<div class="container-fluid py-4">
-    <h3 class="mb-3">💳 Payment Transfers Debug</h3>
-    <p class="text-muted">Showing latest 50 records</p>
+    Route::get('/debug/payment-transfers-html', function () {
 
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped table-hover align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Order</th>
-                    <th>Shop</th>
-                    <th>Stripe Account</th>
+        $transfers = PaymentTransfer::with(['shop', 'order'])
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
 
-                    <th>Payment Intent</th>
-                    <th>Charge</th>
-                    <th>Transfer</th>
+        return response()->make('
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Payment Transfers Debug</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
 
-                    <!-- OLD (LEGACY) -->
-                    <th>Amount (Legacy)</th>
-                    <th>Platform Fee (Legacy)</th>
-                    <th>Net (Legacy)</th>
-                    <th>Currency</th>
+            <!-- Bootstrap 5 CDN -->
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-                    <!-- NEW (STRIPE REAL) -->
-                    <th>Checkout Amount</th>
-                    <th>Checkout Currency</th>
+            <style>
+                body { background: #f8f9fa; }
+                table { font-size: 13px; }
+                th { white-space: nowrap; }
+                td { vertical-align: middle; }
+                .badge { font-size: 12px; }
+                .code { font-family: monospace; font-size: 12px; }
+                .muted { color: #6c757d; font-size: 12px; }
+            </style>
+        </head>
+        <body>
 
-                    <th>Gross (Stripe)</th>
-                    <th>Stripe Fee</th>
-                    <th>Net (Stripe)</th>
-                    <th>Settlement Currency</th>
-                    <th>FX Rate</th>
+        <div class="container-fluid py-4">
+            <h3 class="mb-3">💳 Payment Transfers Debug</h3>
+            <p class="text-muted">Showing latest 50 records</p>
 
-                    <th>Status</th>
-                    <th>Release At</th>
-                    <th>Created</th>
-                </tr>
-            </thead>
-            <tbody>
-            ' . $transfers->map(function ($t) {
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Order</th>
+                            <th>Shop</th>
+                            <th>Stripe Account</th>
 
-                $statusBadge = match ($t->status) {
-                    "on_hold" => "warning",
-                    "released" => "success",
-                    "failed" => "danger",
-                    default => "secondary",
-                };
+                            <th>Payment Intent</th>
+                            <th>Charge</th>
+                            <th>Transfer</th>
 
-                $legacyNet = ($t->amount_cents ?? 0) - ($t->platform_fee_cents ?? 0);
+                            <!-- OLD (LEGACY) -->
+                            <th>Amount (Legacy)</th>
+                            <th>Platform Fee (Legacy)</th>
+                            <th>Net (Legacy)</th>
+                            <th>Currency</th>
 
-                return '
-                <tr>
-                    <td>#' . $t->id . '</td>
-                    <td>' . ($t->order_id ?? '-') . '</td>
-                    <td>' . (optional($t->shop)->name ?? '-') . '</td>
-                    <td class="code">' . (optional($t->shop)->stripe_account_id ?? '-') . '</td>
+                            <!-- NEW (STRIPE REAL) -->
+                            <th>Checkout Amount</th>
+                            <th>Checkout Currency</th>
 
-                    <td class="code">' . ($t->payment_intent_id ?? '-') . '</td>
-                    <td class="code">' . ($t->charge_id ?? '-') . '</td>
-                    <td class="code">' . ($t->stripe_transfer_id ?? '-') . '</td>
+                            <th>Gross (Stripe)</th>
+                            <th>Stripe Fee</th>
+                            <th>Net (Stripe)</th>
+                            <th>Settlement Currency</th>
+                            <th>FX Rate</th>
 
-                    <!-- LEGACY -->
-                    <td>' . number_format(($t->amount_cents ?? 0) / 100, 2) . '</td>
-                    <td>' . number_format(($t->platform_fee_cents ?? 0) / 100, 2) . '</td>
-                    <td><strong>' . number_format($legacyNet / 100, 2) . '</strong></td>
-                    <td>' . strtoupper($t->currency ?? '-') . '</td>
+                            <th>Status</th>
+                            <th>Release At</th>
+                            <th>Created</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    ' . $transfers->map(function ($t) {
 
-                    <!-- STRIPE -->
-                    <td>' . number_format(($t->checkout_amount_cents ?? 0) / 100, 2) . '</td>
-                    <td>' . strtoupper($t->checkout_currency ?? '-') . '</td>
+                        $statusBadge = match ($t->status) {
+                            "on_hold" => "warning",
+                            "released" => "success",
+                            "failed" => "danger",
+                            default => "secondary",
+                        };
 
-                    <td>' . number_format(($t->gross_amount_cents ?? 0) / 100, 2) . '</td>
-                    <td>' . number_format(($t->stripe_fee_cents ?? 0) / 100, 2) . '</td>
-                    <td><strong>' . number_format(($t->net_amount_cents ?? 0) / 100, 2) . '</strong></td>
-                    <td>' . strtoupper($t->settlement_currency ?? '-') . '</td>
-                    <td>' . ($t->exchange_rate ? number_format($t->exchange_rate, 6) : '-') . '</td>
+                        $legacyNet = ($t->amount_cents ?? 0) - ($t->platform_fee_cents ?? 0);
 
-                    <td>
-                        <span class="badge bg-' . $statusBadge . '">
-                            ' . strtoupper($t->status) . '
-                        </span>
-                    </td>
+                        return '
+                        <tr id="transfer-row-' . $t->id . '">
+                            <td>#' . $t->id . '</td>
+                            <td>' . ($t->order_id ?? '-') . '</td>
+                            <td>' . (optional($t->shop)->name ?? '-') . '</td>
+                            <td class="code">' . (optional($t->shop)->stripe_account_id ?? '-') . '</td>
 
-                    <td>' . optional($t->release_at)->toDateTimeString() . '</td>
-                    <td>' . optional($t->created_at)->toDateTimeString() . '</td>
-                </tr>';
+                            <td class="code">' . ($t->payment_intent_id ?? '-') . '</td>
+                            <td class="code">' . ($t->charge_id ?? '-') . '</td>
+                            <td class="code">' . ($t->stripe_transfer_id ?? '-') . '</td>
 
-            })->implode('') . '
-            </tbody>
-        </table>
-    </div>
-</div>
+                            <!-- LEGACY -->
+                            <td>' . number_format(($t->amount_cents ?? 0) / 100, 2) . '</td>
+                            <td>' . number_format(($t->platform_fee_cents ?? 0) / 100, 2) . '</td>
+                            <td><strong>' . number_format($legacyNet / 100, 2) . '</strong></td>
+                            <td>' . strtoupper($t->currency ?? '-') . '</td>
 
-</body>
-</html>
-');
-});
+                            <!-- STRIPE -->
+                            <td>' . number_format(($t->checkout_amount_cents ?? 0) / 100, 2) . '</td>
+                            <td>' . strtoupper($t->checkout_currency ?? '-') . '</td>
+
+                            <td>' . number_format(($t->gross_amount_cents ?? 0) / 100, 2) . '</td>
+                            <td>' . number_format(($t->stripe_fee_cents ?? 0) / 100, 2) . '</td>
+                            <td><strong>' . number_format(($t->net_amount_cents ?? 0) / 100, 2) . '</strong></td>
+                            <td>' . strtoupper($t->settlement_currency ?? '-') . '</td>
+                            <td>' . ($t->exchange_rate ? number_format($t->exchange_rate, 6) : '-') . '</td>
+
+                            <td>
+                                <span class="badge bg-' . $statusBadge . '">
+                                    ' . strtoupper($t->status) . '
+                                </span>
+                            </td>
+
+                            <td>' . optional($t->release_at)->toDateTimeString() . '</td>
+                            <td>' . optional($t->created_at)->toDateTimeString() . '</td>
+                                                <td>
+                                <button class="btn btn-sm btn-danger" onclick="deleteTransfer(' . $t->id . ')">Delete</button>
+                            </td>
+                        </tr>';
+
+                    })->implode('') . '
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <script>
+            function deleteTransfer(id) {
+                if (!confirm("Are you sure you want to delete PaymentTransfer #" + id + "?")) return;
+
+                fetch("/debug/payment-transfer/" + id, {
+                    method: "DELETE",
+                    headers: {
+                        "X-CSRF-TOKEN": "' . csrf_token() . '",
+                        "Accept": "application/json"
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        const row = document.getElementById("transfer-row-" + id);
+                        if (row) row.remove();
+                        alert(data.message);
+                    } else {
+                        alert(data.message || "Failed to delete PaymentTransfer");
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("An error occurred");
+                });
+            }
+            </script>
+
+        </body>
+        </html>
+        ');
+    });
+
+
 
 
     
