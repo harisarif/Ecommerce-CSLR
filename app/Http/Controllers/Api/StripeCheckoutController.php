@@ -530,7 +530,6 @@ class StripeCheckoutController extends Controller
                 $checkoutAmountCents = $session->amount_total; // AED cents
                 $checkoutCurrency = strtoupper($session->currency); // AED
                 $charge = $paymentIntent->charges->data[0] ?? null;
-
                 $balanceTx = null;
 
                 if ($charge && $charge->balance_transaction) {
@@ -539,7 +538,8 @@ class StripeCheckoutController extends Controller
                     );
                 }
 
-                $platformFeeCents = intval(round($balanceTx->amount * 0.05));
+                // ✅ SAFE: based on checkout amount, NOT Stripe balance
+                $platformFeeCents = intval(round($checkoutAmountCents * 0.05));
                 Log::info('🟡 Creating PaymentTransfer', [
                     'order_id' => $order->id,
                     'amount' => $paymentIntent->amount_received,
@@ -565,11 +565,13 @@ class StripeCheckoutController extends Controller
 
                     // Backward compatibility
                     'amount_cents' => $checkoutAmountCents,
-                    'platform_fee_cents' => intval(round($checkoutAmountCents * 0.05)),
+                    'platform_fee_cents' => $platformFeeCents,
                     'currency' => strtoupper($session->currency),
 
                     'status' => 'on_hold',
-                    'release_at' => now()->addDays(7),
+                    // 'release_at' => now()->addDays(7),
+                    'release_at' => now(),
+
 
                     'meta' => [
                         'stripe_session_id' => $session->id,
