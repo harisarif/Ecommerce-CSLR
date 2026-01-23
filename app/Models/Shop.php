@@ -22,11 +22,13 @@ class Shop extends Model
         'stripe_account_id',
         'platform_commission_percent',
         'vacation_mode',
+        'illegal', 
     ];
 
     protected $casts = [
         'settings' => 'array',
         'vacation_mode' => 'boolean',
+        'illegal' => 'boolean',
     ];
 
     public function scopeActive($query)
