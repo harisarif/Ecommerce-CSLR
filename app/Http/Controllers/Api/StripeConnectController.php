@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PaymentTransfer;
 use Illuminate\Http\Request;
 use Stripe\Stripe;
 use App\Models\Shop;
@@ -229,62 +230,119 @@ class StripeConnectController extends Controller
     }
 
 
-    public function transactions(Request $request)
-    {
-        $user = $request->user();
-        $shop = Shop::where('user_id', $user->id)->firstOrFail();
+public function transactions(Request $request)
+{
+    $user = $request->user();
+    $shop = Shop::where('user_id', $user->id)->firstOrFail();
 
-        Stripe::setApiKey(env('STRIPE_SECRET'));
+    Stripe::setApiKey(env('STRIPE_SECRET'));
 
-        $transactions = \Stripe\BalanceTransaction::all([
+    $data = collect();
+
+    // ================= STRIPE CONNECT TRANSACTIONS =================
+    try {
+        $stripeTransactions = \Stripe\BalanceTransaction::all([
             'limit' => 20,
         ], [
             'stripe_account' => $shop->stripe_account_id,
         ]);
 
-        $data = collect($transactions->data)->map(function ($t) {
-
-            // Default message
+        $stripeData = collect($stripeTransactions->data)->map(function ($t) {
             $message = 'Transaction';
 
             if ($t->type === 'payment') {
                 $message = $t->status === 'pending'
                     ? 'Payment received (processing)'
                     : 'Payment received';
-            }
-
-            if ($t->type === 'payout') {
+            } elseif ($t->type === 'payout') {
                 $message = match ($t->status) {
                     'pending' => 'Withdrawal in progress',
                     'paid'    => 'Withdrawal completed',
                     'failed'  => 'Withdrawal failed',
                     default   => 'Withdrawal',
                 };
-            }
-
-            if ($t->type === 'stripe_fee') {
+            } elseif ($t->type === 'stripe_fee') {
                 $message = 'Platform fee deducted';
-            }
-
-            if ($t->type === 'transfer') {
+            } elseif ($t->type === 'transfer') {
                 $message = 'Funds transferred';
             }
 
             return [
+                'source' => 'stripe',
                 'id' => $t->id,
-                'message' => $message, // ✅ THIS IS WHAT YOUR UI NEEDS
-                'type' => $t->type,
+                'message' => $message,
+                'type' => $t->type === 'payment' ? 'credit' : 'debit',
                 'amount' => abs($t->amount) / 100,
-                'fee' => abs($t->fee) / 100,
-                'net' => $t->net / 100,
                 'currency' => strtoupper($t->currency),
                 'status' => $t->status,
                 'created_at' => date('Y-m-d H:i:s', $t->created),
             ];
         });
 
-        return response()->json($data);
+        $data = $data->merge($stripeData);
+    } catch (\Exception $e) {
+        \Log::error('Stripe transactions fetch failed: ' . $e->getMessage());
     }
+
+    // ================= MARKETPLACE PAYMENTS (PaymentTransfer) =================
+    $marketplaceData = PaymentTransfer::with(['order.orderProducts', 'shop', 'buyer'])
+        ->where(function ($q) use ($shop, $user) {
+            $q->where('shop_id', $shop->id) // received payments
+              ->orWhereHas('order', function ($q2) use ($user) {
+                  $q2->where('buyer_id', $user->id); // payments sent
+              });
+        })
+        ->whereIn('status', ['on_hold', 'released']) // ✅ only on_hold or released
+        ->get()
+        ->map(function ($pt) use ($user) {
+
+            $order = $pt->order;
+            $sellerShop = $pt->shop; // receiver
+            $buyer = $pt->buyer ?? optional($order)->buyer; // sender
+
+            $isSender = optional($order)->buyer_id === $user->id;
+
+            $productTitle = optional($order?->orderProducts->first())?->product_title
+                            ?? $pt->meta['product_title'] 
+                            ?? 'Unknown Product';
+
+            $buyerName = $buyer?->name 
+                         ?? ($buyer?->first_name && $buyer?->last_name ? $buyer->first_name . ' ' . $buyer->last_name : null)
+                         ?? 'Unknown Buyer';
+
+            $shopName = $sellerShop?->name ?? 'Unknown Shop';
+
+              // Build base transaction array
+            $transaction = [
+                'source' => 'marketplace',
+                'id' => $pt->id,
+                'message' => $isSender
+                    ? 'Payment sent to ' . $shopName . ' for ' . $productTitle
+                    : 'Payment received from ' . $buyerName . ' for ' . $productTitle,
+                'type' => $isSender ? 'Outgoing' : 'Incoming',
+                'amount' => ($pt->checkout_amount_cents ?? 0) / 100,
+                'currency' => strtoupper($pt->checkout_currency ?? 'AED'),
+                'status' => $pt->status ?? 'on_hold',
+                'created_at' => $pt->created_at?->toDateTimeString() ?? now()->toDateTimeString(),
+            ];
+
+            // If payment is on_hold, include release date
+            if ($pt->status === 'on_hold' && $pt->release_at) {
+                $transaction['release_at'] = $pt->release_at->toDateTimeString();
+            }
+
+            return $transaction;
+        });
+
+    $data = $data->merge($marketplaceData);
+
+    // Sort by created_at descending
+    $data = $data->sortByDesc('created_at')->values();
+
+    return response()->json($data);
+}
+
+
 
 
 

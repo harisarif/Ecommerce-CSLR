@@ -39,4 +39,22 @@ class OrderProduct extends Model
         'updated_at',
         'created_at',
     ];
+
+
+     // Seller shop (receiver)
+    public function sellerShop()
+    {
+        return $this->belongsTo(Shop::class, 'seller_id');
+    }
+
+    // Buyer user (sender)
+    public function buyer()
+    {
+        return $this->belongsTo(User::class, 'buyer_id');
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
 }
