@@ -191,7 +191,6 @@ class StripeConnectController extends Controller
             'stripe_account_id' => $shop->stripe_account_id,
             'onboarding_required' => $onboardingRequired,
             'onboarding_url' => $onboardingUrl,
-            'stripe_account' => $account,
         ]);
     }
 
