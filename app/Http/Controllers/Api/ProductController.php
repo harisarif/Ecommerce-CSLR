@@ -197,13 +197,13 @@ class ProductController extends Controller
             }
 
             // ✅ STRIPE CHECK (IMPORTANT)
-            if (!$user->shop->isStripeReady()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Stripe Connect is not completed. Please complete Stripe onboarding before creating products.',
-                    'action'  => 'stripe_onboarding_required'
-                ], 403);
-            }
+            // if (!$user->shop->isStripeReady()) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Stripe Connect is not completed. Please complete Stripe onboarding before creating products.',
+            //         'action'  => 'stripe_onboarding_required'
+            //     ], 403);
+            // }
 
             // 💾 Create product
             $product = Product::create([
