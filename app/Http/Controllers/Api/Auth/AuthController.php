@@ -20,6 +20,8 @@ use App\Models\UserSize;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
+use Stripe\Account;
+use Stripe\AccountLink;
 
 
 class AuthController extends Controller
@@ -243,24 +245,39 @@ class AuthController extends Controller
         // ================== STRIPE EXPRESS ACCOUNT CREATION ==================
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
+        $onboardingUrl = null;
+        $stripeAccountId = null;
+
         try {
-            $account = \Stripe\Account::create([
-                'type' => 'express',
-                'country' => env('STRIPE_COUNTRY', 'AE'), // change if needed
-                'email' => $user->email,
+            // 1️⃣ Create Express Account
+            $account = Account::create([
+                'type'    => 'express',
+                'country' => config('services.stripe.country', 'AE'),
+                'email'   => $user->email,
                 'metadata' => [
                     'user_id' => $user->id,
                     'shop_id' => $shop->id,
                 ],
             ]);
 
-            // Save Stripe account ID in shop
-            $shop->stripe_account_id = $account->id;
-            $shop->save();
+            $stripeAccountId = $account->id;
+
+            $shop->update([
+                'stripe_account_id' => $stripeAccountId,
+            ]);
+
+            // 2️⃣ Create Onboarding Link
+            $accountLink = AccountLink::create([
+                'account'     => $stripeAccountId,
+                'type'        => 'account_onboarding',
+                'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh',
+                'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete',
+            ]);
+
+            $onboardingUrl = $accountLink->url;
 
         } catch (\Exception $e) {
-            // Optional: log error (DO NOT block signup)
-            \Log::error('Stripe account creation failed', [
+            \Log::error('Stripe onboarding failed', [
                 'error' => $e->getMessage(),
                 'user_id' => $user->id,
             ]);
@@ -292,6 +309,8 @@ class AuthController extends Controller
             'message'      => 'User registered successfully',
             'user'         => $user,
             'access_token' => $token,
+            'stripe_account_id'     => $stripeAccountId,
+            'stripe_onboarding_url' => $onboardingUrl,
         ]);
     }
 
