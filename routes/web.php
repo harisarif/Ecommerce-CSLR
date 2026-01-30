@@ -10,6 +10,8 @@ use Stripe\Stripe;
 use Stripe\AccountLink;
 use Illuminate\Support\Facades\Artisan;
 use App\Models\PaymentTransfer;
+use Illuminate\Support\Facades\DB;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -508,6 +510,26 @@ Route::delete('/debug/payment-transfer/{id}', function ($id) {
             'status' => 'success',
             'output' => Artisan::output(),
         ]);
+    });
+
+    Route::get('/delete-user-by-email/{email}', function ($email) {
+
+        $user = User::where('email', $email)->first();
+
+        if (! $user) {
+            return response('User not found', 404);
+        }
+
+        DB::transaction(function () use ($user) {
+            // delete related shops
+            $user->shops()->delete();
+
+            // delete user
+            $user->delete();
+        });
+
+        return response('User and shops deleted successfully');
+
     });
 
 
