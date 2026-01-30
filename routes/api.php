@@ -78,8 +78,12 @@ Route::prefix('v1')->group(function () {
         
         Route::prefix('product')->group(function () {
             Route::get('/list', [ProductController::class, 'getUserProducts']);
+            Route::get('/my', [ProductController::class, 'myProducts']);
+            Route::delete('delete/{id}',[ProductController::class, 'deleteMyProduct']);
+            Route::get('/{id}/show', [ProductController::class, 'show']);
             Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
             Route::post('{id}/addproduct-review', [ShopController::class, 'addProductReview']);
+            Route::put('/{id}/update', [ProductController::class, 'update']);
         });
 
         Route::prefix('cart')->group(function () {

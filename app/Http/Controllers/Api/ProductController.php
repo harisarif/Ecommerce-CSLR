@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\ProductAttribute;
 use App\Models\ProductImage;
 use App\Models\ProductInterested;
+use App\Models\ProductSize;
 use App\Models\Review;
 use App\Models\UserBrand;
 use App\Models\UserSize;
@@ -346,6 +348,183 @@ class ProductController extends Controller
     }
 
 
+    public function update(Request $request, $id)
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $product = Product::where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $product) {
+            return response()->json(['message' => 'Product not found or access denied'], 404);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'short_description' => 'nullable|string|max:500',
+            'slug' => 'nullable|string|max:255|unique:products,slug,' . $product->id,
+            'price' => 'required|integer',
+            'price_discounted' => 'nullable|integer',
+            'currency' => 'required|string|max:10',
+            'discount_rate' => 'nullable|integer',
+            'vat_rate' => 'nullable|numeric',
+            'status' => 'boolean',
+            'stock' => 'integer',
+            'brand_id' => 'nullable|exists:brands,id',
+            'app_category_id' => 'nullable|exists:app_categories,id',
+
+            'size_ids' => 'array',
+            'size_ids.*' => 'exists:sizes,id',
+
+            'attributes' => 'array',
+            'attributes.*.type' => 'required|string',
+            'attributes.*.value' => 'required|string',
+
+            'parcelSize' => 'array',
+            'parcelSize.*.key' => 'required|string',
+            'parcelSize.*.name' => 'required|string',
+
+            'images' => 'array',
+            'images.*' => 'file|image|mimes:jpeg,png,jpg,webp|max:2048',
+
+            'measurement_width' => 'nullable|numeric',
+            'measurement_length' => 'nullable|numeric',
+            'condition' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            // Update product
+            $product->update([
+                'slug' => $validated['slug'] ?? $product->slug,
+                'price' => $validated['price'],
+                'price_discounted' => $validated['price_discounted'] ?? null,
+                'currency' => $validated['currency'],
+                'discount_rate' => $validated['discount_rate'] ?? null,
+                'vat_rate' => $validated['vat_rate'] ?? null,
+                'status' => $validated['status'] ?? $product->status,
+                'stock' => $validated['stock'] ?? $product->stock,
+                'brand_id' => $validated['brand_id'] ?? null,
+                'app_category_id' => $validated['app_category_id'] ?? null,
+            ]);
+
+            // Update details (single language for now)
+            $product->details()->updateOrCreate(
+                ['lang_id' => 1],
+                [
+                    'title' => $validated['title'],
+                    'description' => $validated['description'] ?? null,
+                    'short_description' => $validated['short_description'] ?? null,
+                ]
+            );
+
+            // Reset sizes
+            $product->productSizes()->delete();
+            if (!empty($validated['size_ids'])) {
+                foreach ($validated['size_ids'] as $sizeId) {
+                    ProductSize::create([
+                        'product_id' => $product->id,
+                        'size_id' => $sizeId,
+                        'stock' => $validated['stock'] ?? 0,
+                    ]);
+                }
+            }
+
+            // Reset attributes
+            $product->attributes()->delete();
+
+            if (!empty($validated['attributes'])) {
+                foreach ($validated['attributes'] as $attr) {
+                    ProductAttribute::create([
+                        'product_id' => $product->id,
+                        'type' => $attr['type'],
+                        'value' => $attr['value'],
+                    ]);
+                }
+            }
+
+            if (!empty($validated['measurement_width'])) {
+                ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'measurement_width',
+                    'value' => $validated['measurement_width'] . ' in',
+                ]);
+            }
+
+            if (!empty($validated['measurement_length'])) {
+                ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'measurement_length',
+                    'value' => $validated['measurement_length'] . ' in',
+                ]);
+            }
+
+            if (!empty($validated['condition'])) {
+                ProductAttribute::create([
+                    'product_id' => $product->id,
+                    'type' => 'condition',
+                    'value' => $validated['condition'],
+                ]);
+            }
+
+            if (!empty($validated['parcelSize'])) {
+                foreach ($validated['parcelSize'] as $parcel) {
+                    ProductAttribute::create([
+                        'product_id' => $product->id,
+                        'type' => 'parcel_size_' . $parcel['key'],
+                        'value' => $parcel['name'],
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product updated successfully',
+                'data' => $product->load(['details', 'productSizes.size', 'attributes'])
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Product update failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function show($id)
+    {
+        $product = Product::with([
+            'attributes',
+            'details',
+            'appCategory',
+            'user',
+            'sizes',
+            'shop'
+        ])->find($id);
+
+        if (! $product) {
+            return response()->json(['message' => 'Product not found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $product
+        ]);
+    }
+
+
+
 
 
     // public function getUserProducts(Request $request)
@@ -551,4 +730,73 @@ class ProductController extends Controller
             'isSeller' => $isSeller, // ✅ Added flag
         ]);
     }
+
+
+    public function myProducts(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->shop) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shop not found'
+            ], 404);
+        }
+
+        $products = Product::where('shop_id', $user->shop->id)
+            ->with([
+                'details',
+                'brand:id,name',
+                'appCategory:id,slug',
+                'productSizes.size:id,name,type',
+                'shop:id,name',
+                // 'images'
+            ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'count'   => $products->count(),
+            'products'=> $products,
+        ]);
+    }
+
+    public function deleteMyProduct(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if (!$user->shop) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shop not found'
+            ], 404);
+        }
+
+        $product = Product::where('id', $id)
+            ->where('shop_id', $user->shop->id)
+            ->first();
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found or unauthorized'
+            ], 404);
+        }
+
+        DB::transaction(function () use ($product) {
+            $product->attributes()->delete();
+            $product->productSizes()->delete();
+            $product->images()->delete();
+            $product->details()->delete();
+            $product->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ]);
+    }
+
+
 }
