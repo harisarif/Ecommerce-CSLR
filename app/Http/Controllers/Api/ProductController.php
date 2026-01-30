@@ -389,9 +389,6 @@ class ProductController extends Controller
             'parcelSize.*.key' => 'required|string',
             'parcelSize.*.name' => 'required|string',
 
-            'images' => 'array',
-            'images.*' => 'file|image|mimes:jpeg,png,jpg,webp|max:2048',
-
             'measurement_width' => 'nullable|numeric',
             'measurement_length' => 'nullable|numeric',
             'condition' => 'nullable|string',
@@ -400,9 +397,11 @@ class ProductController extends Controller
         DB::beginTransaction();
 
         try {
-            // Update product
+             // auto generate slug if not provided
+            $slug = $validated['slug'] ?? Str::slug($validated['title']);
+            // Update main product
             $product->update([
-                'slug' => $validated['slug'] ?? $product->slug,
+                'slug' => $slug,
                 'price' => $validated['price'],
                 'price_discounted' => $validated['price_discounted'] ?? null,
                 'currency' => $validated['currency'],
@@ -414,7 +413,7 @@ class ProductController extends Controller
                 'app_category_id' => $validated['app_category_id'] ?? null,
             ]);
 
-            // Update details (single language for now)
+            // Update details
             $product->details()->updateOrCreate(
                 ['lang_id' => 1],
                 [
@@ -485,10 +484,17 @@ class ProductController extends Controller
 
             DB::commit();
 
+            // 🔥 THIS IS THE FIX
+            $product->refresh()->load([
+                'details',
+                'productSizes.size',
+                'attributes'
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Product updated successfully',
-                'data' => $product->load(['details', 'productSizes.size', 'attributes'])
+                'data' => $product
             ]);
 
         } catch (\Exception $e) {
@@ -500,6 +506,7 @@ class ProductController extends Controller
             ], 500);
         }
     }
+
 
 
     public function show($id)
