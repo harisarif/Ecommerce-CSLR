@@ -576,7 +576,8 @@ class StripeCheckoutController extends Controller
                     'currency' => $checkoutCurrency,
 
                     'status' => 'on_hold',
-                    'release_at' => now()->addDays(7),
+                    // 'release_at' => now()->addDays(7),
+                    'release_at' => now(),
 
                     'meta' => [
                         'stripe_session_id' => $session->id,
