@@ -14,12 +14,12 @@ class AuthenticationController extends Controller
 
     public function signIn()
     {
-        return view('authentication.signIn');
+        return view('authentication.signin');
     }
 
     public function signUp()
     {
-        return view('authentication.signUp');
+        return view('authentication.signup');
     }
 
 
