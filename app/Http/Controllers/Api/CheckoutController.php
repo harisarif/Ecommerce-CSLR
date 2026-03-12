@@ -139,43 +139,35 @@ class CheckoutController extends Controller
 
             $total = $products->sum(fn($p) => $p['amount'] * $p['quantity']);
 
-            $shop = Shop::findOrFail($products->first()['shop_id']);
+            $shop = Shop::with('user')->findOrFail($products->first()['shop_id']);
+            $seller = $shop->user;
 
-            /*
-            |--------------------------------------------------------------------------
-            | TRUSTAP TRANSACTION
-            |--------------------------------------------------------------------------
-            */
+            if (!$user->trustap_user_id) {
+                throw new \Exception('Buyer Trustap ID missing');
+            }
+
+            if (!$seller->trustap_user_id) {
+                throw new \Exception('Seller Trustap ID missing');
+            }
 
             \Log::info('Creating Trustap Transaction', [
                 'buyer_id' => $user->trustap_user_id,
-                'seller_id' => $shop->trustap_user_id,
+                'seller_id' => $seller->trustap_user_id,
                 'total' => $total
             ]);
 
             $transaction = $this->trustap->createTransaction(
                 $user->trustap_user_id,
-                $shop->trustap_user_id,
+                $seller->trustap_user_id,
                 intval($total * 100),
                 "Marketplace order"
             );
 
-            \Log::info('Trustap Transaction Response', [
-                'response' => $transaction
-            ]);
             $transactionId = $transaction['id'] ?? null;
-if (!$transactionId) {
 
-    \Log::error('Trustap Transaction Creation Failed', [
-        'response' => $transaction
-    ]);
-
-    throw new \Exception(
-        $transaction['error'] ??
-        $transaction['message'] ??
-        'Trustap transaction creation failed'
-    );
-}
+            if (!$transactionId) {
+                throw new \Exception('Trustap transaction creation failed');
+            }
 
             /*
             |--------------------------------------------------------------------------
