@@ -48,4 +48,12 @@ return [
        'credentials' => storage_path('firebase/seller-1d654-firebase-adminsdk-fbsvc-c2a033488b.json'),
     ],
 
+    'trustap' => [
+        'base_url' => env('TRUSTAP_BASE_URL'),
+        'secret' => env('TRUSTAP_SECRET'),
+        'client_id' => env('TRUSTAP_CLIENT_ID'),
+        'actions_url' => env('TRUSTAP_ACTIONS_URL'),
+        'api_key' => env('TRUSTAP_API_KEY'),
+    ],
+
 ];

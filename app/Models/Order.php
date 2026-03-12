@@ -33,6 +33,8 @@ class Order extends Model
         'affiliate_data',
         'updated_at',
         'created_at',
+        'trustap_transaction_id',
+        'trustap_status'
     ];
 
     protected $casts = [

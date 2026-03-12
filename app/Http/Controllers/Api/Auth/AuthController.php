@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\EmailLoginToken;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EmailLoginLinkMail;
+use App\Models\Shop;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -22,10 +23,17 @@ use Illuminate\Support\Facades\Auth;
 use Stripe\Stripe;
 use Stripe\Account;
 use Stripe\AccountLink;
+use App\Services\TrustapService;
 
 
 class AuthController extends Controller
 {
+    protected $trustap;
+
+    public function __construct(TrustapService $trustap)
+    {
+        $this->trustap = $trustap;
+    }
 
     public function emailLoginRequest(Request $request)
     {
@@ -139,13 +147,71 @@ class AuthController extends Controller
                 ]);
             }
 
+             /*
+            |--------------------------------------------------------------------------
+            | TRUSTAP USER CHECK / CREATE
+            |--------------------------------------------------------------------------
+            */
+
+            if (!$user->trustap_user_id) {
+
+                try {
+
+                    $trustapUser = $this->trustap->createUser($user->email);
+
+                    \Log::info('Trustap raw response', [
+                        'user_id' => $user->id,
+                        'response' => $trustapUser
+                    ]);
+
+                    if (!empty($trustapUser['id'])) {
+
+                        $user->update([
+                            'trustap_user_id' => $trustapUser['id']
+                        ]);
+                        // update shop trustap id
+                        $shop = Shop::where('user_id', $user->id)->first();
+
+                        if ($shop) {
+                            $shop->update([
+                                'trustap_user_id' => $trustapUser['id']
+                            ]);
+                        }
+
+                        \Log::info('Trustap user created successfully', [
+                            'user_id' => $user->id,
+                            'trustap_user_id' => $trustapUser['id']
+                        ]);
+
+                    } else {
+
+                        \Log::error('Trustap response missing ID', [
+                            'user_id' => $user->id,
+                            'response' => $trustapUser
+                        ]);
+
+                    }
+
+                } catch (\Throwable $e) {
+
+                    \Log::error('Trustap user creation failed', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage()
+                    ]);
+
+                }
+
+            }
+
+
             $apiToken = JWTAuth::fromUser($user);
             $record->delete();
 
             return response()->json([
                 'status' => 'success',
                 'token' => $apiToken,
-                'email' => $user->email
+                'email' => $user->email,
+                'trustap_user_id' => $user->trustap_user_id
             ]);
         } else {
 
@@ -243,45 +309,78 @@ class AuthController extends Controller
         ]);
 
         // ================== STRIPE EXPRESS ACCOUNT CREATION ==================
-        Stripe::setApiKey(env('STRIPE_SECRET'));
+        // Stripe::setApiKey(env('STRIPE_SECRET'));
 
         $onboardingUrl = null;
         $stripeAccountId = null;
 
+        // ================== TRUSTAP USER CREATION ==================
+
+        $trustapUserId = null;
+
         try {
-            // 1️⃣ Create Express Account
-            $account = Account::create([
-                'type'    => 'express',
-                'country' => config('services.stripe.country', 'AE'),
-                'email'   => $user->email,
-                'metadata' => [
-                    'user_id' => $user->id,
-                    'shop_id' => $shop->id,
-                ],
-            ]);
 
-            $stripeAccountId = $account->id;
+            $trustapUser = $this->trustap->createUser($user->email);
 
-            $shop->update([
-                'stripe_account_id' => $stripeAccountId,
-            ]);
+            $trustapUserId = $trustapUser['id'] ?? null;
 
-            // 2️⃣ Create Onboarding Link
-            $accountLink = AccountLink::create([
-                'account'     => $stripeAccountId,
-                'type'        => 'account_onboarding',
-                'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh',
-                'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete',
-            ]);
+            if ($trustapUserId) {
+                $user->update([
+                    'trustap_user_id' => $trustapUserId
+                ]);
+                                    // update shop trustap id
+                $shop = Shop::where('user_id', $user->id)->first();
 
-            $onboardingUrl = $accountLink->url;
+                if ($shop) {
+                    $shop->update([
+                        'trustap_user_id' => $trustapUser['id']
+                    ]);
+                }
+            }
 
         } catch (\Exception $e) {
-            \Log::error('Stripe onboarding failed', [
+
+            Log::error('Trustap user creation failed', [
                 'error' => $e->getMessage(),
-                'user_id' => $user->id,
+                'user_id' => $user->id
             ]);
+
         }
+
+        // try {
+        //     // 1️⃣ Create Express Account
+        //     $account = Account::create([
+        //         'type'    => 'express',
+        //         'country' => config('services.stripe.country', 'AE'),
+        //         'email'   => $user->email,
+        //         'metadata' => [
+        //             'user_id' => $user->id,
+        //             'shop_id' => $shop->id,
+        //         ],
+        //     ]);
+
+        //     $stripeAccountId = $account->id;
+
+        //     $shop->update([
+        //         'stripe_account_id' => $stripeAccountId,
+        //     ]);
+
+        //     // 2️⃣ Create Onboarding Link
+        //     $accountLink = AccountLink::create([
+        //         'account'     => $stripeAccountId,
+        //         'type'        => 'account_onboarding',
+        //         'refresh_url' => config('app.frontend_url') . '/stripe/onboard/refresh',
+        //         'return_url'  => config('app.frontend_url') . '/stripe/onboard/complete',
+        //     ]);
+
+        //     $onboardingUrl = $accountLink->url;
+
+        // } catch (\Exception $e) {
+        //     \Log::error('Stripe onboarding failed', [
+        //         'error' => $e->getMessage(),
+        //         'user_id' => $user->id,
+        //     ]);
+        // }
         // Save sizes (store IDs)
         if ($request->has('sizes')) {
             foreach ($request->sizes as $sizeData) {
@@ -311,6 +410,7 @@ class AuthController extends Controller
             'access_token' => $token,
             'stripe_account_id'     => $stripeAccountId,
             'stripe_onboarding_url' => $onboardingUrl,
+            'trustap_user_id' => $trustapUserId
         ]);
     }
 
@@ -352,14 +452,113 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        // Get authenticated user
+        $user = auth('api')->user();
+
+        if (!$user->trustap_user_id) {
+
+            try {
+
+                $trustapUser = $this->trustap->createUser($user->email);
+
+                \Log::info('Trustap raw response', [
+                    'user_id' => $user->id,
+                    'response' => $trustapUser
+                ]);
+
+                if (!empty($trustapUser['id'])) {
+
+                    $user->update([
+                        'trustap_user_id' => $trustapUser['id']
+                    ]);
+
+
+                    // update shop trustap id
+                    $shop = Shop::where('user_id', $user->id)->first();
+
+                    if ($shop) {
+                        $shop->update([
+                            'trustap_user_id' => $trustapUser['id']
+                        ]);
+                    }
+
+
+                    \Log::info('Trustap user created successfully', [
+                        'user_id' => $user->id,
+                        'trustap_user_id' => $trustapUser['id']
+                    ]);
+
+                } else {
+
+                    \Log::error('Trustap response missing ID', [
+                        'user_id' => $user->id,
+                        'response' => $trustapUser
+                    ]);
+
+                }
+
+            } catch (\Throwable $e) {
+
+                \Log::error('Trustap user creation failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+
+            }
+        }
+
         return response()->json([
             'message' => 'User logged in successfully',
-            'user' => auth('api')->user(),
+            'user' => $user,
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60
         ]);
     }
+
+
+
+    
+    // public function login(Request $request)
+    // {
+    //     $credentials = $request->only('email', 'password');
+
+    //     if (!$token = auth('api')->attempt($credentials)) {
+    //         return response()->json(['message' => 'Invalid credentials'], 401);
+    //     }
+
+    //     // Get authenticated user
+    //     $user = auth('api')->user();
+
+    //     if (!$user->trustap_user_id) {
+
+    //         // ================== TRUSTAP FULL USER OAUTH URL ==================
+    //         $clientId = config('services.trustap.client_id');
+    //         $redirectUri = urlencode(config('app.frontend_url') . '/trustap/callback');
+    //         $state = Str::random(32);
+
+    //         // Store state in DB/session to verify later
+    //         TrustapOauthState::create([
+    //             'user_id' => $user->id,
+    //             'state'   => $state,
+    //         ]);
+
+    //         $scope = urlencode("openid basic_tx:offline_create_join basic_tx:offline_accept_payment basic_tx:offline_cancel basic_tx:offline_accept_payment");
+
+    //         $trustapAuthUrl = "https://sso.trustap.com/auth/realms/trustap-stage/protocol/openid-connect/auth?" .
+    //                         "client_id={$clientId}&redirect_uri={$redirectUri}&response_type=code&scope={$scope}&state={$state}";
+
+    //     }
+
+    //     return response()->json([
+    //         'message' => 'User logged in successfully',
+    //         'user' => $user,
+    //         'access_token' => $token,
+    //         'token_type' => 'bearer',
+    //         'expires_in' => auth('api')->factory()->getTTL() * 60,
+    //         'trustap_oauth_url'   => $trustapAuthUrl,
+    //     ]);
+    // }
 
 
 

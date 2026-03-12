@@ -75,6 +75,7 @@ class User extends Authenticatable implements JWTSubject
         'dob',
         'billing_address',
         'fcm_token',
+        'trustap_user_id'
     ];
 
 
@@ -323,7 +324,14 @@ class User extends Authenticatable implements JWTSubject
      */
     public function isAdmin()
     {
-        return $this->role_id === 1; // Assuming 1 is the admin role ID
+        return $this->role && (
+            $this->role->is_admin ||
+            $this->role->is_super_admin
+        );
+    }
+    public function scopeNonAdmin($query)
+    {
+        return $query->where('role_id', '!=', 1); // 1 = admin
     }
 
     /**
@@ -333,7 +341,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function isVendor()
     {
-        return $this->role_id === 2; // Assuming 2 is the vendor role ID
+        return $this->role && $this->role->is_vendor;
     }
 
     /**
@@ -343,7 +351,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function isMember()
     {
-        return $this->role_id === 3; // Assuming 3 is the member role ID
+        return $this->role && $this->role->is_member;
     }
 
     /**
@@ -507,5 +515,24 @@ class User extends Authenticatable implements JWTSubject
             'user_id',
             'shop_id'
         )->withTimestamps();
+    }
+    public function shops()
+    {
+        return $this->hasMany(Shop::class, 'user_id', 'id');
+    }
+
+    protected static function booted()
+    {
+        static::deleting(function ($user) {
+
+            // delete shops
+            if ($user->shops) {
+                $user->shops()->delete();
+            }
+
+            if ($user->shop) {
+                $user->shop()->delete();
+            }
+        });
     }
 }

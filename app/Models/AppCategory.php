@@ -65,6 +65,11 @@ class AppCategory extends Model
         return $this->children()->with('descendants');
     }
 
+    public function childrenRecursive()
+    {
+        return $this->children()->with('childrenRecursive');
+    }
+
 
     public function products()
     {

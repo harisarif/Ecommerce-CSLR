@@ -23,6 +23,7 @@ class Shop extends Model
         'platform_commission_percent',
         'vacation_mode',
         'illegal', 
+        'trustap_user_id'
     ];
 
     protected $casts = [

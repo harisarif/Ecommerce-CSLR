@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminProfileController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Models\Offer;
@@ -10,10 +11,89 @@ use Stripe\Stripe;
 use Stripe\AccountLink;
 use Illuminate\Support\Facades\Artisan;
 use App\Models\PaymentTransfer;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AuthenticationController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\UsersController;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+
+
+    Route::prefix('/')->controller(AuthenticationController::class)->group(function () {
+        Route::get('/login', 'signin')->name('login');
+        Route::post('/login', 'login')->name('login.post');
+        Route::post('/logout', 'logout')->name('logout');
+    });
+
+    Route::middleware(['auth'])->group(function () {
+
+        Route::controller(DashboardController::class)->group(function () {
+            Route::get('/', 'index')->name('dashboard');
+        });
+
+
+
+
+        Route::prefix('admin')->group(function () {
+            Route::controller(AdminProfileController::class)->group(function () {
+                Route::get('/profile-view', 'viewProfile')->name('viewProfile');
+                Route::patch('/profile/update', 'updateProfile')->name('profile.update');
+                Route::patch('/profile/change-password', 'changePassword')->name('profile.password');
+            });
+        });
+
+        Route::prefix('admin')->group(function () {
+            Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
+            Route::post('categories', [CategoryController::class, 'store'])->name('categories.store');
+            Route::delete('categories/{id}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+        });
+
+        Route::controller(HomeController::class)->group(function () {
+            Route::get('calendar','calendar')->name('calendar');
+            Route::get('chatmessage','chatMessage')->name('chatMessage');
+            Route::get('chatempty','chatempty')->name('chatempty');
+            Route::get('email','email')->name('email');
+            Route::get('error','error1')->name('error');
+            Route::get('faq','faq')->name('faq');
+            Route::get('gallery','gallery')->name('gallery');
+            Route::get('kanban','kanban')->name('kanban');
+            Route::get('pricing','pricing')->name('pricing');
+            Route::get('termscondition','termsCondition')->name('termsCondition');
+            Route::get('widgets','widgets')->name('widgets');
+            Route::get('chatprofile','chatProfile')->name('chatProfile');
+            Route::get('veiwdetails','veiwDetails')->name('veiwDetails');
+            Route::get('blankPage','blankPage')->name('blankPage');
+            Route::get('comingSoon','comingSoon')->name('comingSoon');
+            Route::get('maintenance','maintenance')->name('maintenance');
+            Route::get('starred','starred')->name('starred');
+            Route::get('testimonials','testimonials')->name('testimonials');
+        });
+
+
+        // Users
+        Route::prefix('users')->group(function () {
+            Route::controller(UsersController::class)->group(function () {
+                Route::get('/add-user', 'addUser')->name('addUser');
+                Route::post('/store','storeUserWithShop')->name('store');
+                Route::get('/users-grid', 'usersGrid')->name('usersGrid');
+                Route::get('/users-list', 'usersList')->name('usersList');
+                Route::get('/edit-user/{id}', 'edit')->name('editUser');
+                Route::patch('/users/{id}','updateUserWithShop')->name('updateUserWithShop');
+                Route::patch('/users/{id}/change-password', 'changePassword')->name('changePassword');
+                Route::delete('/delete-user/{id}', 'deleteUser')->name('deleteUser');
+
+            });
+        });
+
+    });
+
+
+
+
+
+
+
+
 
 
     Route::get('/order-success', function (Request $request) {
@@ -308,23 +388,23 @@ Route::get('/', function () {
 
 
     // DELETE PaymentTransfer by ID
-Route::delete('/debug/payment-transfer/{id}', function ($id) {
-    $paymentTransfer = PaymentTransfer::find($id);
+    Route::delete('/debug/payment-transfer/{id}', function ($id) {
+        $paymentTransfer = PaymentTransfer::find($id);
 
-    if (!$paymentTransfer) {
+        if (!$paymentTransfer) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'PaymentTransfer not found'
+            ], 404);
+        }
+
+        $paymentTransfer->delete();
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'PaymentTransfer not found'
-        ], 404);
-    }
-
-    $paymentTransfer->delete();
-
-    return response()->json([
-        'status' => 'success',
-        'message' => "PaymentTransfer with ID $id deleted successfully"
-    ]);
-})->name('payment-transfer.delete');
+            'status' => 'success',
+            'message' => "PaymentTransfer with ID $id deleted successfully"
+        ]);
+    })->name('payment-transfer.delete');
 
 
     Route::get('/debug/payment-transfers-html', function () {
@@ -510,8 +590,10 @@ Route::delete('/debug/payment-transfer/{id}', function ($id) {
         ]);
     });
 
+
     Route::get('/delete-user-by-email/{email}', function ($email) {
-       $user = User::where('email', $email)->first();
+
+        $user = User::where('email', $email)->first();
 
             if (! $user) {
                 return response('User not found', 404);
@@ -520,7 +602,6 @@ Route::delete('/debug/payment-transfer/{id}', function ($id) {
             $user->delete(); // 🔥 shops auto-deleted via model event
 
             return response('User and shops deleted successfully');
-
     });
 
 

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\BrandController;
+use App\Http\Controllers\Api\BuyerController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\WishListController;
@@ -17,6 +18,9 @@ use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\InboxController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\StripeCheckoutController;
+use App\Http\Controllers\Api\CheckoutController;
+use App\Http\Controllers\Api\SellerController;
+use App\Http\Controllers\Api\TrustapWebhookController;
 
 Route::prefix('v1')->group(function () {
 
@@ -52,6 +56,10 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware('auth:api')->group(function () {
+        Route::post('/checkout/session', [CheckoutController::class, 'createCheckout']); // this is used for trustapp checkout
+        Route::post('/trustap/orders/{orderId}/tracking', [SellerController::class, 'addTracking']);
+        Route::post('/orders/{orderId}/confirm-delivery', [BuyerController::class, 'confirmDelivery']);
+        Route::get('seller/balance', [SellerController::class, 'balance']);
         Route::post('stripe/connect/create', [\App\Http\Controllers\Api\StripeConnectController::class, 'createExpressAccount']);
         Route::get('stripe/connect/status', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingStatus']);
         Route::get('stripe/connect/login-link', [\App\Http\Controllers\Api\StripeConnectController::class, 'createLoginLink']);
@@ -61,7 +69,7 @@ Route::prefix('v1')->group(function () {
         Route::get('stripe/transactions', [\App\Http\Controllers\Api\StripeConnectController::class, 'transactions']);
         Route::post('stripe/withdraw', [\App\Http\Controllers\Api\StripeConnectController::class, 'withdraw']);
         Route::get('/stripe/onboarding-url', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingUrl']);
-        Route::post('/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']);
+        Route::post('stripe/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']); // this is used for stripe checkout
         Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
@@ -166,5 +174,6 @@ Route::prefix('v1')->group(function () {
     Route::get('/currency/active', [UserController::class, 'getActive']);
     Route::apiResource('sizes', SizeController::class);
     Route::post('/stripe/webhook', [StripeCheckoutController::class, 'handleStripeWebhook']);
-
+    Route::post('/trustap/webhook', [TrustapWebhookController::class, 'handle']);
+    Route::get('/trustap/callback', [TrustapWebhookController::class, 'trustapCallback']);
 });
