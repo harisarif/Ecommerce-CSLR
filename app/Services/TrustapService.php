@@ -52,6 +52,11 @@ class TrustapService
     {
         $charge = $this->calculateCharge($price);
 
+        \Log::info('Trustap Charge Response', [
+            'price' => $price,
+            'charge_response' => $charge
+        ]);
+
         $response = $this->client()->post(
             $this->baseUrl . '/me/transactions/create_with_guest_user',
             [
@@ -61,10 +66,18 @@ class TrustapService
                 'currency' => 'aed',
                 'description' => $description,
                 'price' => $price,
-                'charge' => $charge['charge'],
-                'charge_calculator_version' => $charge['charge_calculator_version']
+                'charge' => $charge['charge'] ?? null,
+                'charge_calculator_version' => $charge['charge_calculator_version'] ?? null
             ]
         );
+
+        \Log::info('Trustap Transaction API Response', [
+            'buyer_id' => $buyerId,
+            'seller_id' => $sellerId,
+            'price' => $price,
+            'response_status' => $response->status(),
+            'response_body' => $response->json()
+        ]);
 
         return $response->json();
     }

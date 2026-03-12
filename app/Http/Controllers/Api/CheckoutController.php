@@ -147,6 +147,12 @@ class CheckoutController extends Controller
             |--------------------------------------------------------------------------
             */
 
+            \Log::info('Creating Trustap Transaction', [
+                'buyer_id' => $user->trustap_user_id,
+                'seller_id' => $shop->trustap_user_id,
+                'total' => $total
+            ]);
+
             $transaction = $this->trustap->createTransaction(
                 $user->trustap_user_id,
                 $shop->trustap_user_id,
@@ -154,11 +160,22 @@ class CheckoutController extends Controller
                 "Marketplace order"
             );
 
+            \Log::info('Trustap Transaction Response', [
+                'response' => $transaction
+            ]);
             $transactionId = $transaction['id'] ?? null;
+if (!$transactionId) {
 
-            if (!$transactionId) {
-                throw new \Exception('Trustap transaction creation failed');
-            }
+    \Log::error('Trustap Transaction Creation Failed', [
+        'response' => $transaction
+    ]);
+
+    throw new \Exception(
+        $transaction['error'] ??
+        $transaction['message'] ??
+        'Trustap transaction creation failed'
+    );
+}
 
             /*
             |--------------------------------------------------------------------------
