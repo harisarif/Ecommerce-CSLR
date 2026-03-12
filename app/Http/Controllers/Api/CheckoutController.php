@@ -139,6 +139,12 @@ class CheckoutController extends Controller
 
             $total = $products->sum(fn($p) => $p['amount'] * $p['quantity']);
 
+            \Log::info('Creating Trustap Transactionsssssssssssssssssssss', [
+                'buyer_id' => $user->trustap_user_id,
+                'products' => $products,
+                'total' => $total
+            ]);
+
             $shop = Shop::with('user')->findOrFail($products->first()['shop_id']);
             $seller = $shop->user;
 
