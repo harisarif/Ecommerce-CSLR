@@ -56,7 +56,7 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::middleware('auth:api')->group(function () {
-        Route::post('/checkout/session', [CheckoutController::class, 'createCheckout']); // this is used for trustapp checkout
+        Route::post('/trustap/checkout', [CheckoutController::class, 'createCheckout']);
         Route::post('/trustap/orders/{orderId}/tracking', [SellerController::class, 'addTracking']);
         Route::post('/orders/{orderId}/confirm-delivery', [BuyerController::class, 'confirmDelivery']);
         Route::get('seller/balance', [SellerController::class, 'balance']);
@@ -69,7 +69,7 @@ Route::prefix('v1')->group(function () {
         Route::get('stripe/transactions', [\App\Http\Controllers\Api\StripeConnectController::class, 'transactions']);
         Route::post('stripe/withdraw', [\App\Http\Controllers\Api\StripeConnectController::class, 'withdraw']);
         Route::get('/stripe/onboarding-url', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingUrl']);
-        Route::post('/stripe/session', [StripeCheckoutController::class, 'createCheckoutSession']); // this is used for stripe checkout
+        Route::post('/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']);
         Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
@@ -113,8 +113,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/getOrders', [OrderController::class, 'getUserOrders']);
             Route::post('/cancel', [OrderController::class, 'cancelOrder']);
         });
-        
-         Route::prefix('buyer')->group(function () {
+
+        Route::prefix('buyer')->group(function () {
             Route::get('/orders', [BuyerController::class,'buyerOrders']);
             Route::get('/orders/{id}', [BuyerController::class,'buyerOrderDetail']);
 
