@@ -113,6 +113,16 @@ Route::prefix('v1')->group(function () {
             Route::get('/getOrders', [OrderController::class, 'getUserOrders']);
             Route::post('/cancel', [OrderController::class, 'cancelOrder']);
         });
+        
+         Route::prefix('buyer')->group(function () {
+            Route::get('/orders', [BuyerController::class,'buyerOrders']);
+            Route::get('/orders/{id}', [BuyerController::class,'buyerOrderDetail']);
+
+        });
+          Route::prefix('seller')->group(function () {
+            Route::get('/orders', [SellerController::class,'sellerOrders']);
+            Route::get('/orders/{id}', [SellerController::class,'sellerOrderDetail']);
+        });
 
         // Shops
         Route::prefix('shop')->group(function () {

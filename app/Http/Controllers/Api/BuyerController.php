@@ -156,4 +156,84 @@ class BuyerController extends Controller
             return response()->json(['message' => 'Confirmation failed', 'error' => $e->getMessage()], 500);
         }
     }
+
+    public function buyerOrders()
+    {
+        $user = auth()->user();
+
+        $orders = Order::where('buyer_id', $user->id)
+            ->with(['orderProducts.product.shop'])
+            ->latest()
+            ->get();
+
+        $formattedOrders = $orders->map(function ($order) {
+
+            return [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'total_price' => $order->price_total,
+                'currency' => $order->price_currency,
+                'payment_status' => $order->payment_status,
+                'trustap_transaction_id' => $order->trustap_transaction_id,
+                'trustap_status' => $order->trustap_status,
+                'created_at' => $order->created_at,
+
+                'products' => $order->orderProducts->map(function ($op) {
+
+                    return [
+                        'order_product_id' => $op->id,
+                        'product_id' => $op->product_id,
+                        'product_name' => $op->product_title,
+                        'product_image' => $op->product->main_image ?? null,
+                        'price' => $op->product_total_price,
+                        'quantity' => $op->product_quantity,
+
+                        'shop' => [
+                            'shop_id' => $op->product->shop->id ?? null,
+                            'shop_name' => $op->product->shop->name ?? null,
+                            'shop_image' => $op->product->shop->image_url ?? null,
+                        ]
+                    ];
+                })
+            ];
+        });
+
+        return response()->json([
+            'type' => 'buyer_orders',
+            'orders' => $formattedOrders
+        ]);
+    }
+
+    public function buyerOrderDetail($id)
+    {
+        $userId = auth()->id();
+
+        $order = Order::where('buyer_id', $userId)
+            ->with([
+                'buyer',
+                'orderProducts.product.shop',
+                'orderProducts.product.mainImageRelation'
+            ])
+            ->findOrFail($id);
+
+        $order->orderProducts->transform(function ($op) {
+
+            $meta = json_decode($op->meta ?? '{}', true);
+
+            $op->offer_id = $meta['offer_id'] ?? null;
+
+            $op->product_name = $op->product->details()->first()->title ?? $op->product_title;
+
+            $op->product_image = $op->product->main_image ?? null;
+
+            $op->shop = $op->product->shop ?? null;
+
+            return $op;
+        });
+
+        return response()->json([
+            'type' => 'buyer_order_detail',
+            'order' => $order
+        ]);
+    }
 }
