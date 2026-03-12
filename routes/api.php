@@ -69,7 +69,7 @@ Route::prefix('v1')->group(function () {
         Route::get('stripe/transactions', [\App\Http\Controllers\Api\StripeConnectController::class, 'transactions']);
         Route::post('stripe/withdraw', [\App\Http\Controllers\Api\StripeConnectController::class, 'withdraw']);
         Route::get('/stripe/onboarding-url', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingUrl']);
-        Route::post('stripe/checkout/session', [StripeCheckoutController::class, 'createCheckoutSession']); // this is used for stripe checkout
+        Route::post('/stripe/session', [StripeCheckoutController::class, 'createCheckoutSession']); // this is used for stripe checkout
         Route::post('product/create', [ProductController::class, 'store']);
         Route::get('/products/filter', [DiscoverController::class, 'getFilteredProducts']);
         Route::get('/filters', [DiscoverController::class, 'filters']);
