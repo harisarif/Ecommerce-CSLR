@@ -52,6 +52,7 @@ class SellerController extends Controller
         $orders = Order::whereHas('orderProducts', function ($q) use ($sellerId) {
                 $q->where('seller_id', $sellerId);
             })
+            ->where('trustap_status', '!=', 'created')
             ->with([
                 'buyer',
                 'orderProducts.product.shop'
