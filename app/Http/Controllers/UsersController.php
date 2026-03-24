@@ -143,11 +143,11 @@ class UsersController extends Controller
             'billing_address' => 'required|string',
             'password'   => 'nullable|string|min:6|confirmed', // optional on update
             'user_profile_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-
+            
             // ================= SHOP =================
-            'shop.name'    => 'required|string|max:255',
-            'shop.phone'   => 'required|string|max:50',
-            'shop.address' => 'required|string|max:512',
+            'shop.name'    => 'sometimes|string|max:255',
+            'shop.phone'   => 'sometimes|string|max:50',
+            'shop.address' => 'sometimes|string|max:512',
             'shop.description' => 'nullable|string',
             'shop.image'   => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
@@ -163,6 +163,10 @@ class UsersController extends Controller
                 'billing_address'
             ]);
 
+            // ✅ ADD THIS
+            if ($request->filled('trust_ap_id')) {
+                $userData['trustap_user_id'] = $request->trust_ap_id;
+            }
 
             if ($request->filled('password')) {
 
@@ -182,6 +186,10 @@ class UsersController extends Controller
             // ======== UPDATE SHOP ========
             $shopData = $request->input('shop');
             $shopData['slug'] = Str::slug($shopData['name']);
+            // ✅ ADD THIS
+            if ($request->filled('trust_ap_id')) {
+                $shopData['trustap_user_id'] = $request->trust_ap_id;
+            }
 
             // shop image
             if ($request->hasFile('shop.image')) {

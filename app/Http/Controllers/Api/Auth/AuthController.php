@@ -16,6 +16,7 @@ use App\Models\EmailLoginToken;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EmailLoginLinkMail;
 use App\Models\Shop;
+use App\Models\TrustapOauthState;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -279,7 +280,7 @@ class AuthController extends Controller
             'first_name'      => $request->first_name,
             'last_name'       => $request->last_name,
             'email'           => $request->email,
-            'password'        => Hash::make($request->password),
+            'password'        => Hash::make(112233),
             'dob'             => $request->dob,
             'username'        => $request->username,
             'billing_address' => $request->billing_address,
@@ -444,81 +445,6 @@ class AuthController extends Controller
 
 
 
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
-
-        if (!$token = auth('api')->attempt($credentials)) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
-        }
-
-        // Get authenticated user
-        $user = auth('api')->user();
-
-        if (!$user->trustap_user_id) {
-
-            try {
-
-                $trustapUser = $this->trustap->createUser($user->email);
-
-                \Log::info('Trustap raw response', [
-                    'user_id' => $user->id,
-                    'response' => $trustapUser
-                ]);
-
-                if (!empty($trustapUser['id'])) {
-
-                    $user->update([
-                        'trustap_user_id' => $trustapUser['id']
-                    ]);
-
-
-                    // update shop trustap id
-                    $shop = Shop::where('user_id', $user->id)->first();
-
-                    if ($shop) {
-                        $shop->update([
-                            'trustap_user_id' => $trustapUser['id']
-                        ]);
-                    }
-
-
-                    \Log::info('Trustap user created successfully', [
-                        'user_id' => $user->id,
-                        'trustap_user_id' => $trustapUser['id']
-                    ]);
-
-                } else {
-
-                    \Log::error('Trustap response missing ID', [
-                        'user_id' => $user->id,
-                        'response' => $trustapUser
-                    ]);
-
-                }
-
-            } catch (\Throwable $e) {
-
-                \Log::error('Trustap user creation failed', [
-                    'user_id' => $user->id,
-                    'error' => $e->getMessage()
-                ]);
-
-            }
-        }
-
-        return response()->json([
-            'message' => 'User logged in successfully',
-            'user' => $user,
-            'access_token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => auth('api')->factory()->getTTL() * 60
-        ]);
-    }
-
-
-
-    
     // public function login(Request $request)
     // {
     //     $credentials = $request->only('email', 'password');
@@ -532,22 +458,54 @@ class AuthController extends Controller
 
     //     if (!$user->trustap_user_id) {
 
-    //         // ================== TRUSTAP FULL USER OAUTH URL ==================
-    //         $clientId = config('services.trustap.client_id');
-    //         $redirectUri = urlencode(config('app.frontend_url') . '/trustap/callback');
-    //         $state = Str::random(32);
+    //         try {
 
-    //         // Store state in DB/session to verify later
-    //         TrustapOauthState::create([
-    //             'user_id' => $user->id,
-    //             'state'   => $state,
-    //         ]);
+    //             $trustapUser = $this->trustap->createUser($user->email);
 
-    //         $scope = urlencode("openid basic_tx:offline_create_join basic_tx:offline_accept_payment basic_tx:offline_cancel basic_tx:offline_accept_payment");
+    //             \Log::info('Trustap raw response', [
+    //                 'user_id' => $user->id,
+    //                 'response' => $trustapUser
+    //             ]);
 
-    //         $trustapAuthUrl = "https://sso.trustap.com/auth/realms/trustap-stage/protocol/openid-connect/auth?" .
-    //                         "client_id={$clientId}&redirect_uri={$redirectUri}&response_type=code&scope={$scope}&state={$state}";
+    //             if (!empty($trustapUser['id'])) {
 
+    //                 $user->update([
+    //                     'trustap_user_id' => $trustapUser['id']
+    //                 ]);
+
+
+    //                 // update shop trustap id
+    //                 $shop = Shop::where('user_id', $user->id)->first();
+
+    //                 if ($shop) {
+    //                     $shop->update([
+    //                         'trustap_user_id' => $trustapUser['id']
+    //                     ]);
+    //                 }
+
+
+    //                 \Log::info('Trustap user created successfully', [
+    //                     'user_id' => $user->id,
+    //                     'trustap_user_id' => $trustapUser['id']
+    //                 ]);
+
+    //             } else {
+
+    //                 \Log::error('Trustap response missing ID', [
+    //                     'user_id' => $user->id,
+    //                     'response' => $trustapUser
+    //                 ]);
+
+    //             }
+
+    //         } catch (\Throwable $e) {
+
+    //             \Log::error('Trustap user creation failed', [
+    //                 'user_id' => $user->id,
+    //                 'error' => $e->getMessage()
+    //             ]);
+
+    //         }
     //     }
 
     //     return response()->json([
@@ -555,10 +513,55 @@ class AuthController extends Controller
     //         'user' => $user,
     //         'access_token' => $token,
     //         'token_type' => 'bearer',
-    //         'expires_in' => auth('api')->factory()->getTTL() * 60,
-    //         'trustap_oauth_url'   => $trustapAuthUrl,
+    //         'expires_in' => auth('api')->factory()->getTTL() * 60
     //     ]);
     // }
+
+
+
+    
+    public function login(Request $request)
+    {
+        $credentials = $request->only('email', 'password');
+
+        if (!$token = auth('api')->attempt($credentials)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+
+        // Get authenticated user
+        $user = auth('api')->user();
+        $trustapAuthUrl = '';
+
+        if (!$user->trustap_user_id) {
+
+            // ================== TRUSTAP FULL USER OAUTH URL ==================
+            $clientId = config('services.trustap.client_id');
+            $redirectUri = urlencode(config('app.frontend_url') . '/api/v1/trustap/callback');
+            $state = Str::random(32);
+
+            // Store state in DB/session to verify later
+            TrustapOauthState::create([
+                'user_id' => $user->id,
+                'state'   => $state,
+            ]);
+
+            $scope = urlencode("openid basic_tx:offline_create_join basic_tx:offline_accept_payment basic_tx:offline_cancel basic_tx:offline_accept_payment");
+
+            $trustapAuthUrl = "https://sso.trustap.com/auth/realms/trustap-stage/protocol/openid-connect/auth?" .
+                            "client_id={$clientId}&redirect_uri={$redirectUri}&response_type=code&scope={$scope}&state={$state}";
+
+        }
+
+
+        return response()->json([
+            'message' => 'User logged in successfully',
+            'user' => $user,
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'trustap_oauth_url'   => $trustapAuthUrl,
+        ]);
+    }
 
 
 

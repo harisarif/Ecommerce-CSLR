@@ -73,6 +73,28 @@
         </div>
     @endif
 
+    @if ($errors->any())
+        <div class="alert alert-danger bg-danger-100 text-danger-600 border-danger-600 border-start-width-4-px border-top-0 border-end-0 border-bottom-0 px-24 py-13 mb-24 fw-semibold text-lg radius-4 d-flex align-items-start justify-content-between" role="alert">
+            
+            <div class="d-flex align-items-start gap-2">
+                <iconify-icon icon="akar-icons:circle-cross" class="icon text-xl"></iconify-icon>
+
+                <div>
+                    <strong class="d-block mb-1">Validation Errors:</strong>
+                    <ul class="mb-0 ps-3">
+                        @foreach ($errors->all() as $error)
+                            <li class="text-sm">{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+
+            <button class="remove-button text-danger-600 text-xxl line-height-1" onclick="this.parentElement.remove()">
+                <iconify-icon icon="iconamoon:sign-times-light" class="icon"></iconify-icon>
+            </button>
+        </div>
+    @endif
+    
     <div class="row gy-4">
           <!-- User Preview Card -->
         <div class="col-lg-4">
@@ -198,6 +220,10 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Billing Address</label>
                                     <textarea name="billing_address" class="form-control" rows="1" required>{{ $user->billing_address }}</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Trust AP ID</label>
+                                    <textarea name="trust_ap_id" class="form-control" rows="1" required>{{ $user->trustap_user_id }}</textarea>
                                 </div>
 
                                 <hr class="my-24">
