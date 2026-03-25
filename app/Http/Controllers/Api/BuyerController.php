@@ -161,8 +161,7 @@ class BuyerController extends Controller
     {
         $user = auth()->user();
 
-        $orders = Order::where('buyer_id', $user->id)
-        // ->where('trustap_status','!=' ,'created')
+        $orders = Order::where('buyer_id', $user->id)->where('trustap_status','!=' ,'created')
             ->with(['orderProducts.product.shop'])
             ->latest()
             ->get();
