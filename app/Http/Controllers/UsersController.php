@@ -164,9 +164,9 @@ class UsersController extends Controller
             ]);
 
             // ✅ ADD THIS
-            if ($request->filled('trust_ap_id')) {
-                $userData['trustap_user_id'] = $request->trust_ap_id;
-            }
+            // $trustapId = $request->input('trust_ap_id'); // can be null or empty
+
+            // $userData['trustap_user_id'] = $trustapId ?: null;
 
             if ($request->filled('password')) {
 
@@ -187,9 +187,7 @@ class UsersController extends Controller
             $shopData = $request->input('shop');
             $shopData['slug'] = Str::slug($shopData['name']);
             // ✅ ADD THIS
-            if ($request->filled('trust_ap_id')) {
-                $shopData['trustap_user_id'] = $request->trust_ap_id;
-            }
+            // $shopData['trustap_user_id'] = $trustapId ?: null;
 
             // shop image
             if ($request->hasFile('shop.image')) {

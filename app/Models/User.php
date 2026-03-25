@@ -75,7 +75,12 @@ class User extends Authenticatable implements JWTSubject
         'dob',
         'billing_address',
         'fcm_token',
-        'trustap_user_id'
+        'trustap_user_id',
+        'trustap_oauth_user_id',
+        'trustap_access_token',
+        'trustap_refresh_token',
+        'trustap_token_expires_at',
+        'trustap_guest_user_id',
     ];
 
 
@@ -181,6 +186,7 @@ class User extends Authenticatable implements JWTSubject
         'account_delete_req_date' => 'datetime',
         'last_seen' => 'datetime',
         'created_at' => 'datetime',
+        'trustap_token_expires_at' => 'datetime',
     ];
 
     /**

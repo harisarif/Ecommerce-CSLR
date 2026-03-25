@@ -153,55 +153,22 @@ class AuthController extends Controller
             | TRUSTAP USER CHECK / CREATE
             |--------------------------------------------------------------------------
             */
+            if (!$user->trustap_guest_user_id) {
+                $guest = $this->trustap->createUser(
+                    $user->email,
+                    $user->first_name,
+                    $user->last_name
+                );
 
-            if (!$user->trustap_user_id) {
+                $user->update([
+                    'trustap_guest_user_id' => $guest['id'] ?? null
+                ]);
+            }
 
-                try {
-
-                    $trustapUser = $this->trustap->createUser($user->email);
-
-                    \Log::info('Trustap raw response', [
-                        'user_id' => $user->id,
-                        'response' => $trustapUser
-                    ]);
-
-                    if (!empty($trustapUser['id'])) {
-
-                        $user->update([
-                            'trustap_user_id' => $trustapUser['id']
-                        ]);
-                        // update shop trustap id
-                        $shop = Shop::where('user_id', $user->id)->first();
-
-                        if ($shop) {
-                            $shop->update([
-                                'trustap_user_id' => $trustapUser['id']
-                            ]);
-                        }
-
-                        \Log::info('Trustap user created successfully', [
-                            'user_id' => $user->id,
-                            'trustap_user_id' => $trustapUser['id']
-                        ]);
-
-                    } else {
-
-                        \Log::error('Trustap response missing ID', [
-                            'user_id' => $user->id,
-                            'response' => $trustapUser
-                        ]);
-
-                    }
-
-                } catch (\Throwable $e) {
-
-                    \Log::error('Trustap user creation failed', [
-                        'user_id' => $user->id,
-                        'error' => $e->getMessage()
-                    ]);
-
-                }
-
+            if (!$user->trustap_oauth_user_id) {
+                $trustapAuthUrl = $this->trustap->getTrustapOauthUrl($user);
+            } else {
+                $trustapAuthUrl = null;
             }
 
 
@@ -212,7 +179,7 @@ class AuthController extends Controller
                 'status' => 'success',
                 'token' => $apiToken,
                 'email' => $user->email,
-                'trustap_user_id' => $user->trustap_user_id
+                'trustap_oauth_url' => $trustapAuthUrl,
             ]);
         } else {
 
@@ -317,27 +284,22 @@ class AuthController extends Controller
 
         // ================== TRUSTAP USER CREATION ==================
 
-        $trustapUserId = null;
+        $trustapOauthUrl = null;
+        if (!$user->trustap_guest_user_id) {
+            $guest = $this->trustap->createUser(
+                $user->email,
+                $user->first_name,
+                $user->last_name
+            );
+
+            $user->update([
+                'trustap_guest_user_id' => $guest['id'] ?? null
+            ]);
+        }
 
         try {
 
-            $trustapUser = $this->trustap->createUser($user->email);
-
-            $trustapUserId = $trustapUser['id'] ?? null;
-
-            if ($trustapUserId) {
-                $user->update([
-                    'trustap_user_id' => $trustapUserId
-                ]);
-                                    // update shop trustap id
-                $shop = Shop::where('user_id', $user->id)->first();
-
-                if ($shop) {
-                    $shop->update([
-                        'trustap_user_id' => $trustapUser['id']
-                    ]);
-                }
-            }
+            $trustapOauthUrl = $this->trustap->getTrustapOauthUrl($user);
 
         } catch (\Exception $e) {
 
@@ -411,7 +373,7 @@ class AuthController extends Controller
             'access_token' => $token,
             'stripe_account_id'     => $stripeAccountId,
             'stripe_onboarding_url' => $onboardingUrl,
-            'trustap_user_id' => $trustapUserId
+            'trustap_oauth_url'     => $trustapOauthUrl,
         ]);
     }
 
@@ -532,24 +494,21 @@ class AuthController extends Controller
         $user = auth('api')->user();
         $trustapAuthUrl = '';
 
-        if (!$user->trustap_user_id) {
+        $trustapAuthUrl = null;
+        if (!$user->trustap_guest_user_id) {
+            $guest = $this->trustap->createUser(
+                $user->email,
+                $user->first_name,
+                $user->last_name
+            );
 
-            // ================== TRUSTAP FULL USER OAUTH URL ==================
-            $clientId = config('services.trustap.client_id');
-            $redirectUri = urlencode(config('app.frontend_url') . '/api/v1/trustap/callback');
-            $state = Str::random(32);
-
-            // Store state in DB/session to verify later
-            TrustapOauthState::create([
-                'user_id' => $user->id,
-                'state'   => $state,
+            $user->update([
+                'trustap_guest_user_id' => $guest['id'] ?? null
             ]);
+        }
 
-            $scope = urlencode("openid basic_tx:offline_create_join basic_tx:offline_accept_payment basic_tx:offline_cancel basic_tx:offline_accept_payment");
-
-            $trustapAuthUrl = "https://sso.trustap.com/auth/realms/trustap-stage/protocol/openid-connect/auth?" .
-                            "client_id={$clientId}&redirect_uri={$redirectUri}&response_type=code&scope={$scope}&state={$state}";
-
+        if (!$user->trustap_oauth_user_id) {
+            $trustapAuthUrl = $this->trustap->getTrustapOauthUrl($user);
         }
 
 
@@ -559,7 +518,7 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'trustap_oauth_url'   => $trustapAuthUrl,
+            'trustap_oauth_url' => $trustapAuthUrl,
         ]);
     }
 

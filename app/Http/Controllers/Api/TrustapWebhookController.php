@@ -272,10 +272,10 @@ class TrustapWebhookController extends Controller
         // Exchange code for access token
         $response = \Http::asForm()->post('https://sso.trustap.com/auth/realms/trustap-stage/protocol/openid-connect/token', [
             'client_id'     => config('services.trustap.client_id'),
-            'client_secret' => config('services.trustap.client_secret'),
+            'client_secret' => config('services.trustap.secret'),
             'grant_type'    => 'authorization_code',
             'code'          => $request->code,
-            'redirect_uri'  => config('app.frontend_url') . '/trustap/callback',
+            'redirect_uri'  => config('app.frontend_url') . '/api/v1/trustap/callback',
         ]);
 
         $data = $response->json();
@@ -291,10 +291,10 @@ class TrustapWebhookController extends Controller
         $trustapUserId = $payload['sub'] ?? null;
 
         if ($trustapUserId) {
-            $user->update(['trustap_user_id' => $trustapUserId]);
-            if ($shop = Shop::where('user_id', $user->id)->first()) {
-                $shop->update(['trustap_user_id' => $trustapUserId]);
-            }
+            $user->update(['trustap_oauth_user_id' => $trustapUserId]);
+            // if ($shop = Shop::where('user_id', $user->id)->first()) {
+            //     $shop->update(['trustap_user_id' => $trustapUserId]);
+            // }
         }
 
         // Delete state record

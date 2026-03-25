@@ -140,7 +140,7 @@ class CheckoutController extends Controller
             $total = $products->sum(fn($p) => $p['amount'] * $p['quantity']);
 
             \Log::info('Creating Trustap Transactionsssssssssssssssssssss', [
-                'buyer_id' => $user->trustap_user_id,
+                'buyer_id' => $user->trustap_guest_user_id,
                 'products' => $products,
                 'total' => $total
             ]);
@@ -148,26 +148,34 @@ class CheckoutController extends Controller
             $shop = Shop::with('user')->findOrFail($products->first()['shop_id']);
             $seller = $shop->user;
 
-            if (!$user->trustap_user_id) {
+            if (!$user->trustap_guest_user_id) {
                 throw new \Exception('Buyer Trustap ID missing');
             }
 
-            if (!$seller->trustap_user_id) {
+            if (!$seller->trustap_oauth_user_id) {
                 throw new \Exception('Seller Trustap ID missing');
             }
 
             \Log::info('Creating Trustap Transaction', [
-                'buyer_id' => $user->trustap_user_id,
-                'seller_id' => $seller->trustap_user_id,
+                'buyer_id' => $user->trustap_guest_user_id,
+                'seller_id' => $seller->trustap_oauth_user_id,
                 'total' => $total
             ]);
 
             $transaction = $this->trustap->createTransaction(
-                $user->trustap_user_id,
-                $seller->trustap_user_id,
+                $user->trustap_guest_user_id,
+                $seller->trustap_oauth_user_id,
                 intval($total * 100),
                 "Marketplace order"
             );
+           // ensure valid access token
+            // if (!$user->trustap_access_token || now()->greaterThan($user->trustap_token_expires_at)) {
+            //     $user->trustap_access_token = $this->trustap->refreshAccessToken($user);
+            // }
+
+            // // create transaction
+            // $transaction = $this->trustap->createTransactionRegistered($user, $seller, intval($total*100), "Marketplace order");
+            // \Log::info('Trustap createTransaction response', $transaction);
 
             $transactionId = $transaction['id'] ?? null;
 

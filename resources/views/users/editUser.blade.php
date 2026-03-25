@@ -221,10 +221,10 @@
                                     <label class="form-label">Billing Address</label>
                                     <textarea name="billing_address" class="form-control" rows="1" required>{{ $user->billing_address }}</textarea>
                                 </div>
-                                <div class="col-md-6">
+                                <!-- <div class="col-md-6">
                                     <label class="form-label">Trust AP ID</label>
                                     <textarea name="trust_ap_id" class="form-control" rows="1" required>{{ $user->trustap_user_id }}</textarea>
-                                </div>
+                                </div> -->
 
                                 <hr class="my-24">
                                 <h6 class="text-md text-primary-light mb-16">Shop Details</h6>

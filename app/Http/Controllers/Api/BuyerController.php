@@ -38,7 +38,7 @@ class BuyerController extends Controller
         DB::beginTransaction();
         try {
             // Call Trustap API to confirm delivery
-            $response = $this->trustap->confirmDelivery($order->trustap_transaction_id, $order->buyer->trustap_user_id);
+            $response = $this->trustap->confirmDelivery($order->trustap_transaction_id, $order->buyer->trustap_guest_user_id);
 
             // Check Trustap response
             if (!isset($response['status']) || !in_array($response['status'], ['delivered', 'released'])) {
