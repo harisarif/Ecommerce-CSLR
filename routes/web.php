@@ -637,7 +637,7 @@ function userFields() {
 */
 Route::get('/users', function () {
 
-    $users = User::latest()->limit(50)->get();
+    $users = User::latest()->get();
     $fields = userFields();
 
     $html = "<h2>Users</h2>";

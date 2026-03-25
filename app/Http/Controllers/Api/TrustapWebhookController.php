@@ -291,10 +291,14 @@ class TrustapWebhookController extends Controller
         $trustapUserId = $payload['sub'] ?? null;
 
         if ($trustapUserId) {
-            $user->update(['trustap_oauth_user_id' => $trustapUserId]);
-            // if ($shop = Shop::where('user_id', $user->id)->first()) {
-            //     $shop->update(['trustap_user_id' => $trustapUserId]);
-            // }
+            $user->update([
+                'trustap_oauth_user_id'   => $trustapUserId,
+                'trustap_access_token'    => $data['access_token'] ?? null,
+                'trustap_refresh_token'   => $data['refresh_token'] ?? null,
+                'trustap_token_expires_at'=> isset($data['expires_in'])
+                                            ? now()->addSeconds($data['expires_in'])
+                                            : null,
+            ]);
         }
 
         // Delete state record
