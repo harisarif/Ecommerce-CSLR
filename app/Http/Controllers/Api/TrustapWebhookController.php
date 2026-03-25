@@ -17,8 +17,8 @@ class TrustapWebhookController extends Controller
 
         Log::info('Trustap Webhook Received', $data);
 
-        $transactionId = $data['transaction']['id'] ?? null;
-        $status = $data['transaction']['status'] ?? null;
+        $transactionId = $data['target_id'] ?? ($data['transaction']['id'] ?? null);
+        $status = $data['target_preview']['status'] ?? null;
 
         if (!$transactionId) {
             return response()->json(['ok' => true]);
