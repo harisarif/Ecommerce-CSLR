@@ -16,6 +16,7 @@ use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\UsersController;
+use Illuminate\Support\Facades\Hash;
 
 
 
@@ -607,3 +608,179 @@ use App\Http\Controllers\UsersController;
 
 
 
+
+
+
+
+
+
+
+
+    /*
+|--------------------------------------------------------------------------
+| Dynamic Fields
+|--------------------------------------------------------------------------
+*/
+function userFields() {
+    $model = new User();
+
+    $fillable = $model->getFillable();
+    $hidden = $model->getHidden();
+
+    return array_values(array_diff($fillable, $hidden));
+}
+
+/*
+|--------------------------------------------------------------------------
+| LIST USERS
+|--------------------------------------------------------------------------
+*/
+Route::get('/users', function () {
+
+    $users = User::latest()->limit(50)->get();
+    $fields = userFields();
+
+    $html = "<h2>Users</h2>";
+    $html .= "<a href='/users/create'>+ Create User</a><br><br>";
+
+    $html .= "<table border='1' cellpadding='8'><tr>";
+
+    foreach ($fields as $field) {
+        $html .= "<th>$field</th>";
+    }
+    $html .= "<th>Actions</th></tr>";
+
+    foreach ($users as $user) {
+        $html .= "<tr>";
+        foreach ($fields as $field) {
+            $value = $user->$field ?? '';
+            $html .= "<td>" . htmlspecialchars($value) . "</td>";
+        }
+
+        $html .= "<td>
+            <a href='/users/{$user->id}/edit'>Edit</a>
+            <form method='POST' action='/users/{$user->id}' style='display:inline;'>
+                ".csrf_field().method_field('DELETE')."
+                <button>Delete</button>
+            </form>
+        </td>";
+
+        $html .= "</tr>";
+    }
+
+    $html .= "</table>";
+
+    return $html;
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| CREATE FORM
+|--------------------------------------------------------------------------
+*/
+Route::get('/users/create', function () {
+
+    $fields = userFields();
+
+    $html = "<h2>Create User</h2>";
+    $html .= "<form method='POST' action='/users'>";
+    $html .= csrf_field();
+
+    foreach ($fields as $field) {
+
+        $type = 'text';
+
+        if (str_contains($field, 'email')) $type = 'email';
+        if (str_contains($field, 'password')) $type = 'password';
+        if (str_contains($field, 'date')) $type = 'date';
+
+        $html .= "<label>$field</label><br>";
+        $html .= "<input type='$type' name='$field'><br><br>";
+    }
+
+    $html .= "<button>Create</button></form>";
+    $html .= "<br><a href='/users'>Back</a>";
+
+    return $html;
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| STORE USER
+|--------------------------------------------------------------------------
+*/
+Route::post('/users', function (Request $request) {
+
+    $data = $request->only(userFields());
+
+    if (isset($data['password'])) {
+        $data['password'] = Hash::make($data['password']);
+    }
+
+    User::create($data);
+
+    return redirect('/users');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| EDIT FORM
+|--------------------------------------------------------------------------
+*/
+Route::get('/users/{id}/edit', function ($id) {
+
+    $user = User::findOrFail($id);
+    $fields = userFields();
+
+    $html = "<h2>Edit User</h2>";
+    $html .= "<form method='POST' action='/users/{$user->id}'>";
+    $html .= csrf_field().method_field('PUT');
+
+    foreach ($fields as $field) {
+
+        $type = 'text';
+
+        if (str_contains($field, 'email')) $type = 'email';
+        if ($field == 'password') continue; // skip password edit here
+
+        $value = htmlspecialchars($user->$field ?? '');
+
+        $html .= "<label>$field</label><br>";
+        $html .= "<input type='$type' name='$field' value='$value'><br><br>";
+    }
+
+    $html .= "<button>Update</button></form>";
+    $html .= "<br><a href='/users'>Back</a>";
+
+    return $html;
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| UPDATE USER
+|--------------------------------------------------------------------------
+*/
+Route::put('/users/{id}', function (Request $request, $id) {
+
+    $user = User::findOrFail($id);
+    $data = $request->only(userFields());
+
+    $user->update($data);
+
+    return redirect('/users');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| DELETE USER
+|--------------------------------------------------------------------------
+*/
+Route::delete('/users/{id}', function ($id) {
+    User::findOrFail($id)->delete();
+    return redirect('/users');
+});
