@@ -60,6 +60,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/trustap/orders/{orderId}/tracking', [SellerController::class, 'addTracking']);
         Route::post('/orders/{orderId}/confirm-delivery', [BuyerController::class, 'confirmDelivery']);
         Route::get('seller/balance', [SellerController::class, 'balance']);
+        Route::get('/trustap/check-or-create', [AuthController::class, 'checkOrConnectTrustap']);
         Route::post('stripe/connect/create', [\App\Http\Controllers\Api\StripeConnectController::class, 'createExpressAccount']);
         Route::get('stripe/connect/status', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingStatus']);
         Route::get('stripe/connect/login-link', [\App\Http\Controllers\Api\StripeConnectController::class, 'createLoginLink']);

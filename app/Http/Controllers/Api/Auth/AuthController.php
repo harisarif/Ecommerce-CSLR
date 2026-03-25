@@ -523,6 +523,31 @@ class AuthController extends Controller
     }
 
 
+    public function checkOrConnectTrustap(Request $request)
+    {
+        $user = $request->user();
+
+        // Check if already connected
+        $isConnected = !empty($user->trustap_oauth_user_id)
+            && !empty($user->trustap_access_token);
+
+        $connectUrl = null;
+
+        // If not connected → generate OAuth URL
+        if (!$isConnected) {
+            $connectUrl = $this->trustap->getTrustapOauthUrl($user);
+        }
+
+        return response()->json([
+            'trustap_user_id' => $user->trustap_oauth_user_id,
+            'is_connected' => $isConnected,
+            'connect_required' => !$isConnected,
+            'connect_url' => $connectUrl,
+            'token_expires_at' => $user->trustap_token_expires_at,
+        ]);
+    }
+
+
 
     /**
      * Send password reset code to user's email
