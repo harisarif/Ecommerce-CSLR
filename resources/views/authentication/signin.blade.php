@@ -51,7 +51,7 @@
 
                     <button type="submit" class="btn btn-primary text-sm btn-sm px-12 py-16 w-100 radius-12 mt-32"> Sign In</button>
 
-                    <div class="mt-32 center-border-horizontal text-center">
+                    <!-- <div class="mt-32 center-border-horizontal text-center">
                         <span class="bg-base z-1 px-4">Or sign in with</span>
                     </div>
                     <div class="mt-32 d-flex align-items-center gap-3">
@@ -66,7 +66,7 @@
                     </div>
                     <div class="mt-32 text-center text-sm">
                         <p class="mb-0">Don’t have an account?<a  href="#" class="text-primary-600 fw-semibold">Sign Up</a></p>
-                    </div>
+                    </div> -->
 
                 </form>
             </div>
