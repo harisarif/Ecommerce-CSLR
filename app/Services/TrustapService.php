@@ -133,47 +133,76 @@ class TrustapService
     // }
 
 
-    public function refreshAccessToken(User $user)
-    {
-        $response = Http::asForm()->post($this->baseUrl . '/auth/realms/trustap-stage/protocol/openid-connect/token', [
-            'grant_type' => 'refresh_token',
-            'client_id' => config('services.trustap.client_id'),
-            'client_secret' => config('services.trustap.client_secret'),
-            'refresh_token' => $user->trustap_refresh_token
-        ]);
+    // public function refreshAccessToken(User $user)
+    // {
+    //     $response = Http::asForm()->post($this->baseUrl . '/auth/realms/trustap-stage/protocol/openid-connect/token', [
+    //         'grant_type' => 'refresh_token',
+    //         'client_id' => config('services.trustap.client_id'),
+    //         'client_secret' => config('services.trustap.client_secret'),
+    //         'refresh_token' => $user->trustap_refresh_token
+    //     ]);
 
-        if ($response->failed()) {
-            throw new \Exception('Failed to refresh Trustap token: ' . $response->body());
-        }
+    //     if ($response->failed()) {
+    //         throw new \Exception('Failed to refresh Trustap token: ' . $response->body());
+    //     }
 
-        $data = $response->json();
+    //     $data = $response->json();
 
-        $user->update([
-            'trustap_access_token' => $data['access_token'],
-            'trustap_refresh_token' => $data['refresh_token'] ?? $user->trustap_refresh_token,
-            // optionally store expiry time
-            'trustap_token_expires_at' => now()->addSeconds($data['expires_in']),
-        ]);
+    //     $user->update([
+    //         'trustap_access_token' => $data['access_token'],
+    //         'trustap_refresh_token' => $data['refresh_token'] ?? $user->trustap_refresh_token,
+    //         // optionally store expiry time
+    //         'trustap_token_expires_at' => now()->addSeconds($data['expires_in']),
+    //     ]);
 
-        return $data['access_token'];
-    }
+    //     return $data['access_token'];
+    // }
 
     public function addTracking($transactionId, $sellerTrustapId, $carrier, $trackingCode)
     {
-        $response = Http::withBasicAuth($this->apiKey, '')
-            ->withHeaders([
-                'Trustap-User' => $sellerTrustapId,
-                'Content-Type' => 'application/json'
-            ])
-            ->post(
-                $this->baseUrl . "/transactions/{$transactionId}/track_with_guest_seller",
-                [
-                    'carrier' => $carrier,
-                    'tracking_code' => $trackingCode
-                ]
-            );
+        try {
+            \Log::info('Trustap addTracking request', [
+                'transaction_id' => $transactionId,
+                'seller_trustap_id' => $sellerTrustapId,
+                'carrier' => $carrier,
+                'tracking_code' => $trackingCode,
+            ]);
 
-        return $response->json();
+            $response = Http::withBasicAuth($this->apiKey, '')
+                ->withHeaders([
+                    'Trustap-User' => $sellerTrustapId,
+                    'Content-Type' => 'application/json'
+                ])
+                ->post(
+                    $this->baseUrl . "/transactions/{$transactionId}/track_with_guest_seller",
+                    [
+                        'carrier' => $carrier,
+                        'tracking_code' => $trackingCode
+                    ]
+                );
+
+            \Log::info('Trustap addTracking response', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            if ($response->failed()) {
+                \Log::error('Trustap addTracking failed', [
+                    'transaction_id' => $transactionId,
+                    'response_body' => $response->body()
+                ]);
+            }
+
+            return $response->json();
+
+        } catch (\Exception $e) {
+            \Log::error('Trustap addTracking exception', [
+                'message' => $e->getMessage(),
+                'transaction_id' => $transactionId
+            ]);
+
+            throw $e; // rethrow if you want the controller to handle it
+        }
     }
 
 
