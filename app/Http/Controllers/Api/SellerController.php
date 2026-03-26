@@ -29,7 +29,7 @@ class SellerController extends Controller
 
         $this->trustap->addTracking(
             $order->trustap_transaction_id,
-            $seller->trustap_oauth_user_id,
+            $seller->trustap_guest_user_id,
             $request->carrier,
             $request->tracking_number
         );

@@ -152,19 +152,19 @@ class CheckoutController extends Controller
                 throw new \Exception('Buyer Trustap ID missing');
             }
 
-            if (!$seller->trustap_oauth_user_id) {
+            if (!$seller->trustap_guest_user_id) {
                 throw new \Exception('Seller Trustap ID missing');
             }
 
             \Log::info('Creating Trustap Transaction', [
                 'buyer_id' => $user->trustap_guest_user_id,
-                'seller_id' => $seller->trustap_oauth_user_id,
+                'seller_id' => $seller->trustap_guest_user_id,
                 'total' => $total
             ]);
 
             $transaction = $this->trustap->createTransaction(
                 $user->trustap_guest_user_id,
-                $seller->trustap_oauth_user_id,
+                $seller->trustap_guest_user_id,
                 intval($total * 100),
                 "Marketplace order"
             );

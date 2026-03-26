@@ -151,8 +151,8 @@ class User extends Authenticatable implements JWTSubject
         'commission_debt',
         'account_delete_req',
         'account_delete_req_date',
-        'trustap_access_token',
-        'trustap_refresh_token',
+        // 'trustap_access_token',
+        // 'trustap_refresh_token',
     ];
     public function getFullNameAttribute()
     {
