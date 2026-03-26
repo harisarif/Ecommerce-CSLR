@@ -651,7 +651,8 @@ class ProductController extends Controller
             'appCategory',
             'user',
             'sizes',
-            'shop'
+            'shop',
+            'brand'
         ])->find($id);
 
         if (!$product) {
