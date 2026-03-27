@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\StripeCheckoutController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\SellerController;
+use App\Http\Controllers\Api\TrustapController;
 use App\Http\Controllers\Api\TrustapWebhookController;
 
 Route::prefix('v1')->group(function () {
@@ -61,6 +62,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/orders/{orderId}/confirm-delivery', [BuyerController::class, 'confirmDelivery']);
         Route::get('seller/balance', [SellerController::class, 'balance']);
         Route::get('/trustap/check-or-create', [AuthController::class, 'checkOrConnectTrustap']);
+        Route::get('trustap/transactions', [TrustapController::class, 'trustapTransactions']);
         Route::post('stripe/connect/create', [\App\Http\Controllers\Api\StripeConnectController::class, 'createExpressAccount']);
         Route::get('stripe/connect/status', [\App\Http\Controllers\Api\StripeConnectController::class, 'getOnboardingStatus']);
         Route::get('stripe/connect/login-link', [\App\Http\Controllers\Api\StripeConnectController::class, 'createLoginLink']);
