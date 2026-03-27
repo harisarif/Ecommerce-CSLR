@@ -20,8 +20,9 @@ public function trustapTransactions(Request $request)
 {
     $user = $request->user();
     $shop = \App\Models\Shop::where('user_id', $user->id)->firstOrFail();
+
     $data = \App\Models\PaymentTransfer::with(['order.orderProducts', 'shop', 'buyer'])
-        ->where('meta->provider', 'trustap')
+        ->whereNotNull('trustap_transaction_id')
         ->where(function ($q) use ($shop, $user) {
             $q->where('shop_id', $shop->id) // received
               ->orWhereHas('order', function ($q2) use ($user) {
@@ -55,7 +56,7 @@ public function trustapTransactions(Request $request)
 
                 'type' => $isSender ? 'debit' : 'credit',
 
-                'amount' => ($pt->amount_cents ?? 0) / 100,
+                'amount' => ($pt->amount_cents ?? $pt->checkout_amount_cents ?? 0) / 100,
                 'currency' => strtoupper($pt->currency ?? 'AED'),
 
                 'status' => match ($pt->status) {

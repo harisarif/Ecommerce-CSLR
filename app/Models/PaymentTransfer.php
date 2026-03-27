@@ -14,6 +14,8 @@ class PaymentTransfer extends Model
         'charge_id',
         'stripe_transfer_id',
 
+        'trustap_transaction_id',
+
         // Money
         'amount_cents',
         'platform_fee_cents',

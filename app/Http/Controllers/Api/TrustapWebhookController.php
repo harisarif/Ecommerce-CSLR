@@ -90,7 +90,7 @@ class TrustapWebhookController extends Controller
                             'currency' => $currency,
 
                             'status' => 'on_hold',
-                            'release_at' => now(),
+                            'release_at' => null,
 
                             'meta' => [
                                 'provider' => 'trustap',
