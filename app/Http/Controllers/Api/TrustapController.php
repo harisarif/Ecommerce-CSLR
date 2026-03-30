@@ -15,68 +15,97 @@ use Illuminate\Support\Facades\Log;
 
 class TrustapController extends Controller
 {
+    protected $trustap;
 
-public function trustapTransactions(Request $request)
-{
-    $user = $request->user();
-    $shop = \App\Models\Shop::where('user_id', $user->id)->firstOrFail();
+    public function __construct(TrustapService $trustap)
+    {
+        $this->trustap = $trustap;
+    }
 
-    $data = \App\Models\PaymentTransfer::with(['order.orderProducts', 'shop', 'buyer'])
-        ->whereNotNull('trustap_transaction_id')
-        ->where(function ($q) use ($shop, $user) {
-            $q->where('shop_id', $shop->id) // received
-              ->orWhereHas('order', function ($q2) use ($user) {
-                  $q2->where('buyer_id', $user->id); // sent
-              });
-        })
-        ->get()
-        ->map(function ($pt) use ($user) {
+    public function trustapTransactions(Request $request)
+    {
+        $user = $request->user();
+        $shop = \App\Models\Shop::where('user_id', $user->id)->firstOrFail();
 
-            $order = $pt->order;
-            $isSender = optional($order)->buyer_id === $user->id;
+        $data = \App\Models\PaymentTransfer::with(['order.orderProducts', 'order.buyer', 'shop'])
+            ->whereNotNull('trustap_transaction_id')
+            ->where(function ($q) use ($shop, $user) {
+                $q->where('shop_id', $shop->id) // received
+                ->orWhereHas('order', function ($q2) use ($user) {
+                    $q2->where('buyer_id', $user->id); // sent
+                });
+            })
+            ->get()
+            ->map(function ($pt) use ($user) {
 
-            $product = optional($order?->orderProducts->first());
+                $order = $pt->order;
+                $isSender = optional($order)->buyer_id === $user->id;
 
-            $productTitle = $product?->product_title ?? 'Product';
+                $product = optional($order?->orderProducts->first());
 
-            $buyer = $pt->buyer ?? optional($order)->buyer;
-            $buyerName = $buyer?->name
-                ?? trim(($buyer?->first_name ?? '') . ' ' . ($buyer?->last_name ?? ''))
-                ?? 'Buyer';
+                $productTitle = $product?->product_title ?? 'Product';
 
-            $shopName = optional($pt->shop)->name ?? 'Shop';
+                $buyer = optional($order)->buyer;
+                $buyerName = $buyer?->name
+                    ?? trim(($buyer?->first_name ?? '') . ' ' . ($buyer?->last_name ?? ''))
+                    ?? 'Buyer';
 
-            return [
-                'source' => 'trustap',
-                'id' => $pt->trustap_transaction_id,
+                $shopName = optional($pt->shop)->name ?? 'Shop';
 
-                'message' => $isSender
-                    ? "Payment sent to {$shopName} for {$productTitle}"
-                    : "Payment received from {$buyerName} for {$productTitle}",
+                return [
+                    'source' => 'trustap',
+                    'id' => $pt->trustap_transaction_id,
 
-                'type' => $isSender ? 'debit' : 'credit',
+                    'message' => $isSender
+                        ? "Payment sent to {$shopName} for {$productTitle}"
+                        : "Payment received from {$buyerName} for {$productTitle}",
 
-                'amount' => ($pt->amount_cents ?? $pt->checkout_amount_cents ?? 0) / 100,
-                'currency' => strtoupper($pt->currency ?? 'AED'),
+                    'type' => $isSender ? 'debit' : 'credit',
 
-                'status' => match ($pt->status) {
-                    'on_hold' => 'Escrow (On Hold)',
-                    'released' => 'Completed',
-                    default => $pt->status,
-                },
+                    'amount' => ($pt->amount_cents ?? $pt->checkout_amount_cents ?? 0) / 100,
+                    'currency' => strtoupper($pt->currency ?? 'AED'),
 
-                'created_at' => $pt->created_at?->toDateTimeString(),
+                    'status' => match ($pt->status) {
+                        'on_hold' => 'Escrow (On Hold)',
+                        'released' => 'Completed',
+                        default => $pt->status,
+                    },
 
-                'release_at' => $pt->status === 'on_hold'
-                    ? optional($pt->release_at)->toDateTimeString()
-                    : null,
-            ];
-        })
-        ->sortByDesc('created_at')
-        ->values();
+                    'created_at' => $pt->created_at?->toDateTimeString(),
 
-    return response()->json($data);
-}
+                    'release_at' => $pt->status === 'on_hold'
+                        ? optional($pt->release_at)->toDateTimeString()
+                        : null,
+                ];
+            })
+            ->sortByDesc('created_at')
+            ->values();
+
+        return response()->json($data);
+    }
+
+
+    public function refreshToken(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $token = $this->trustap->refreshAccessToken($user);
+
+            return response()->json([
+                'success' => true,
+                'access_token' => $token
+            ]);
+
+        } catch (\Throwable $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Token refresh failed',
+                'error' => $e->getMessage() // optional (remove in production)
+            ], 400);
+        }
+    }
 
 
 
