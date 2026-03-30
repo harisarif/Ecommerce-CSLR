@@ -358,35 +358,72 @@ use Illuminate\Support\Facades\Hash;
     
     Route::get('/debug/payment-transfers', function () {
 
-        $transfers = PaymentTransfer::with('shop')
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get();
+        $transfers = PaymentTransfer::with('shop')->orderByDesc('id')->limit(50)->get();
 
-        return response()->json([
-            'count' => $transfers->count(),
-            'data' => $transfers->map(function ($t) {
-                return [
-                    'id' => $t->id,
-                    'order_id' => $t->order_id,
-                    'shop' => [
-                        'id' => $t->shop_id,
-                        'name' => optional($t->shop)->name,
-                        'stripe_account_id' => optional($t->shop)->stripe_account_id,
-                    ],
-                    'amount_cents' => $t->amount_cents,
-                    'platform_fee_cents' => $t->platform_fee_cents,
-                    'net_to_shop_cents' => $t->amount_cents - $t->platform_fee_cents,
-                    'currency' => strtoupper($t->currency),
-                    'status' => $t->status,
-                    'release_at' => optional($t->release_at)->toDateTimeString(),
-                    'stripe_transfer_id' => $t->stripe_transfer_id,
-                    'created_at' => $t->created_at->toDateTimeString(),
-                ];
-            }),
-        ]);
+        return response()->make('
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Payment Transfers Debug</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; background: #f5f6fa; }
+                h2 { margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; background: #fff; }
+                th, td { padding: 10px; border: 1px solid #ddd; font-size: 14px; text-align: left; }
+                th { background: #2f3542; color: #fff; }
+                tr:nth-child(even) { background: #f1f2f6; }
+                .badge { padding: 4px 8px; border-radius: 4px; color: #fff; font-size: 12px; }
+                .on_hold { background: orange; }
+                .released { background: green; }
+                pre { white-space: pre-wrap; word-wrap: break-word; max-width: 300px; }
+            </style>
+        </head>
+        <body>
+            <h2>Payment Transfers (Latest 50)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Order</th>
+                        <th>Shop</th>
+                        <th>Stripe Account</th>
+                        <th>Amount</th>
+                        <th>Platform Fee</th>
+                        <th>Net</th>
+                        <th>Currency</th>
+                        <th>Status</th>
+                        <th>Release At</th>
+                        <th>Stripe Transfer</th>
+                        <th>Meta</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ' .
+                    $transfers->map(function($t) {
+                        return '<tr>
+                            <td>' . $t->id . '</td>
+                            <td>#' . $t->order_id . '</td>
+                            <td>' . optional($t->shop)->name . '</td>
+                            <td>' . optional($t->shop)->stripe_account_id . '</td>
+                            <td>' . number_format($t->amount_cents / 100, 2) . '</td>
+                            <td>' . number_format($t->platform_fee_cents / 100, 2) . '</td>
+                            <td>' . number_format(($t->amount_cents - $t->platform_fee_cents) / 100, 2) . '</td>
+                            <td>' . strtoupper($t->currency) . '</td>
+                            <td><span class="badge ' . $t->status . '">' . strtoupper($t->status) . '</span></td>
+                            <td>' . optional($t->release_at)->toDateTimeString() . '</td>
+                            <td>' . $t->stripe_transfer_id . '</td>
+                            <td><pre>' . json_encode($t->meta, JSON_PRETTY_PRINT) . '</pre></td>
+                            <td>' . $t->created_at->toDateTimeString() . '</td>
+                        </tr>';
+                    })->implode('') .
+                '
+                </tbody>
+            </table>
+        </body>
+        </html>
+        ', 200, ['Content-Type' => 'text/html']);
     });
-
 
     // DELETE PaymentTransfer by ID
     Route::delete('/debug/payment-transfer/{id}', function ($id) {

@@ -48,6 +48,12 @@ class TrustapWebhookController extends Controller
 
             case 'paid':
 
+                // ✅ Prevent duplicate webhook processing
+                if ($order->payment_status === 'paid') {
+                    return response()->json(['success' => true]);
+                }
+
+                // ✅ Update order ONCE
                 $order->update([
                     'payment_status' => 'paid',
                     'trustap_status' => 'paid'
@@ -63,29 +69,34 @@ class TrustapWebhookController extends Controller
                 $currency = strtoupper($order->price_currency ?? 'AED');
 
                 /*
-                |--------------------------------------------------------------------------
-                | Save PaymentTransfer (Trustap Escrow)
-                |--------------------------------------------------------------------------
+                |------------------------------------------------------------------
+                | SAVE PAYMENT TRANSFER
+                |------------------------------------------------------------------
                 */
 
                 try {
 
-                    if (!PaymentTransfer::where('order_id', $order->id)->exists()) {
+                    // ✅ seller → shop fix
+                    $seller = User::find($products->first()->seller_id);
+                    $shopId = $seller?->shop?->id;
 
-                        PaymentTransfer::create([
-                            'order_id' => $order->id,
-                            'shop_id' => $products->first()->shop_id,
+                    // ✅ correct amount
+                    $amount = (float) $order->price_total;
 
+                    PaymentTransfer::updateOrCreate(
+                        ['order_id' => $order->id],
+                        [
+                            'shop_id' => $shopId,
                             'trustap_transaction_id' => $transactionId,
 
-                            'checkout_amount_cents' => $order->total_amount * 100,
+                            'checkout_amount_cents' => $amount * 100,
                             'checkout_currency' => $currency,
 
-                            'gross_amount_cents' => $order->total_amount * 100,
+                            'gross_amount_cents' => $amount * 100,
                             'stripe_fee_cents' => 0,
-                            'net_amount_cents' => $order->total_amount * 100,
+                            'net_amount_cents' => $amount * 100,
 
-                            'amount_cents' => $order->total_amount * 100,
+                            'amount_cents' => $amount * 100,
                             'platform_fee_cents' => 0,
                             'currency' => $currency,
 
@@ -96,8 +107,8 @@ class TrustapWebhookController extends Controller
                                 'provider' => 'trustap',
                                 'transaction_id' => $transactionId
                             ]
-                        ]);
-                    }
+                        ]
+                    );
 
                 } catch (\Exception $e) {
 
@@ -108,9 +119,9 @@ class TrustapWebhookController extends Controller
                 }
 
                 /*
-                |--------------------------------------------------------------------------
+                |------------------------------------------------------------------
                 | SELLER NOTIFICATIONS
-                |--------------------------------------------------------------------------
+                |------------------------------------------------------------------
                 */
 
                 try {
@@ -162,48 +173,19 @@ class TrustapWebhookController extends Controller
                                     'product_id' => $product->product_id,
                                     'price' => $price,
                                     'currency' => $currency,
-                                    'shop' => [
-                                        'id' => $shop?->id,
-                                        'name' => $shop?->name,
-                                        'slug' => $shop?->slug,
-                                        'image' => $shop?->image_url,
-                                    ],
-                                    'buyer' => [
-                                        'id' => $buyer?->id,
-                                        'name' => $buyerShopName,
-                                    ],
                                 ]
                             );
 
                             if (!empty($seller->fcm_token)) {
-
                                 FcmHelper::send(
                                     $seller,
                                     'Product Purchased',
                                     $notificationText,
-                                    [
-                                        'type' => 'order',
-                                        'order_id' => $order->id,
-                                        'product' => [
-                                            'id' => $product->product_id,
-                                            'slug' => $product->product_title,
-                                            'price' => $price,
-                                        ],
-                                        'buyer' => [
-                                            'id' => $buyer?->id,
-                                            'shop_name' => $buyerShopName,
-                                        ],
-                                        'shop' => [
-                                            'id' => $shop?->id,
-                                            'name' => $shop?->name,
-                                            'slug' => $shop?->slug,
-                                        ],
-                                    ],
+                                    [],
                                     $order->id,
                                     'order'
                                 );
                             }
-
                         }
                     }
 
@@ -211,7 +193,7 @@ class TrustapWebhookController extends Controller
 
                     Log::error('Seller purchase notification failed', [
                         'error' => $e->getMessage(),
-                        'order_id' => $order->id ?? null,
+                        'order_id' => $order->id
                     ]);
                 }
 
