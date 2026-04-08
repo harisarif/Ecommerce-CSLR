@@ -189,4 +189,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/stripe/webhook', [StripeCheckoutController::class, 'handleStripeWebhook']);
     Route::post('/trustap/webhook', [TrustapWebhookController::class, 'handle']);
     Route::get('/trustap/callback', [TrustapWebhookController::class, 'trustapCallback']);
+    Route::get('/trustap/success', function () {
+        return response()->json(['message' => 'Account linked successfully. You can now return to the SELR app.']);
+    });
 });
