@@ -48,7 +48,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('brands')->group(function () {
         Route::get('/list', [BrandController::class, 'index']);
     });
-    
+
     Route::prefix('product')->group(function () {
         Route::get('/special-offers', [ProductController::class, 'getSpecialOfferProducts']);
         Route::get('/promoted', [ProductController::class, 'getPromotedProducts']);
@@ -86,11 +86,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/profile/update', [UserController::class, 'updateUserProfile']);
         });
 
-        
+
         Route::prefix('product')->group(function () {
             Route::get('/list', [ProductController::class, 'getUserProducts']);
             Route::get('/my', [ProductController::class, 'myProducts']);
-            Route::delete('delete/{id}',[ProductController::class, 'deleteMyProduct']);
+            Route::delete('delete/{id}', [ProductController::class, 'deleteMyProduct']);
             Route::get('/{id}/show', [ProductController::class, 'show']);
             Route::get('/{id}/detail', [ProductController::class, 'getProductWithShop']);
             Route::post('{id}/addproduct-review', [ShopController::class, 'addProductReview']);
@@ -118,13 +118,13 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::prefix('buyer')->group(function () {
-            Route::get('/orders', [BuyerController::class,'buyerOrders']);
-            Route::get('/orders/{id}', [BuyerController::class,'buyerOrderDetail']);
+            Route::get('/orders', [BuyerController::class, 'buyerOrders']);
+            Route::get('/orders/{id}', [BuyerController::class, 'buyerOrderDetail']);
 
         });
-          Route::prefix('seller')->group(function () {
-            Route::get('/orders', [SellerController::class,'sellerOrders']);
-            Route::get('/orders/{id}', [SellerController::class,'sellerOrderDetail']);
+        Route::prefix('seller')->group(function () {
+            Route::get('/orders', [SellerController::class, 'sellerOrders']);
+            Route::get('/orders/{id}', [SellerController::class, 'sellerOrderDetail']);
         });
 
         // Shops
@@ -147,7 +147,7 @@ Route::prefix('v1')->group(function () {
             Route::get('{id}/liked-products', [ShopController::class, 'likedProductsOfShop']);
             Route::post('{shop}/illegal', [ShopController::class, 'markIllegal']);
             Route::post('{shop}/legal', [ShopController::class, 'markLegal']);
-        });   
+        });
 
         // Offers
         Route::prefix('offer')->group(function () {
@@ -158,14 +158,14 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/counter', [OfferController::class, 'counterOffer']);
             Route::get('/sent-multiple', [OfferController::class, 'sentMultiple']);
             Route::get('/received-multiple', [OfferController::class, 'receivedMultiple']);
-        });   
+        });
 
         // Inbox
         Route::prefix('chat')->group(function () {
             Route::get('/', [InboxController::class, 'index']);
             Route::post('/send', [InboxController::class, 'sendMessage']);
             Route::get('/thread', [InboxController::class, 'chatThread']);
-        });   
+        });
 
         //Notifications
         Route::prefix('notifications')->group(function () {
@@ -181,7 +181,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/clear/all', [NotificationController::class, 'clearAll']);
 
         });
-           
+
     });
     Route::post('/check-username', [UserController::class, 'checkUsername']);
     Route::get('/currency/active', [UserController::class, 'getActive']);
@@ -189,4 +189,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/stripe/webhook', [StripeCheckoutController::class, 'handleStripeWebhook']);
     Route::post('/trustap/webhook', [TrustapWebhookController::class, 'handle']);
     Route::get('/trustap/callback', [TrustapWebhookController::class, 'trustapCallback']);
+    Route::get('/return-back', function () {
+        return response()->json([
+            'message' => 'Return back',
+        ]);
+    });
+
 });
