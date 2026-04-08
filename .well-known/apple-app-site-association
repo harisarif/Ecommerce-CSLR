@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "FJ9B2XU9SH.com.selr.app",
-        "paths": [ 
+        "paths": [
           "/api/v1/auth/email-login-verify/*",
           "/api/v1/return-back",
           "/api/v1/shop/*"
