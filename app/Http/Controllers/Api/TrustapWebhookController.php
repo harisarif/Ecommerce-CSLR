@@ -286,6 +286,11 @@ class TrustapWebhookController extends Controller
         // Delete state record
         $stateRecord->delete();
 
-        return redirect()->away(url('/api/v1/trustap/success?status=success'));
+        return response()->json([
+            'message'          => 'Trustap account linked successfully',
+            'trustap_user_id'  => $trustapUserId,
+            'access_token'     => $data['access_token'],
+            'refresh_token'    => $data['refresh_token'],
+        ]);
     }
 }
