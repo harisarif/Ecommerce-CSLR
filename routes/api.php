@@ -194,5 +194,10 @@ Route::prefix('v1')->group(function () {
             'message' => 'Return back',
         ]);
     });
+    Route::get('/product/return-back', function () {
+        return response()->json([
+            'message' => 'Return back',
+        ]);
+    });
 
 });

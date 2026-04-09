@@ -52,7 +52,7 @@
         @if($sessionId)
             <p><strong>Session ID:</strong> {{ $sessionId }}</p>
         @endif
-        <a href="/">Go to Homepage</a>
+        <a href="{{ url('/api/v1/product/return-back') }}">Go to Homepage</a>
     </div>
 </body>
 </html>
