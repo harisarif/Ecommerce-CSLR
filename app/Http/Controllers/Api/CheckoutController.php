@@ -275,7 +275,7 @@ class CheckoutController extends Controller
             |--------------------------------------------------------------------------
             */
 
-            $redirectUrl = config('app.frontend_url') . '/order-success';
+            $redirectUrl = "https://selr.techtrack.online/order-success?trustap_status=ok";
 
             $checkoutUrl = config('services.trustap.actions_url')
                 . "/online/transactions/{$transactionId}/guest_pay"
