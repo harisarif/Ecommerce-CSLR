@@ -548,87 +548,118 @@ class OfferController extends Controller
         // $notificationText = MessageTypeHelper::notificationText($message, $user->username);
         $notificationText = "{$user->username} {$data['status']} your offer for \"{$offer->product->slug}\" at price {$offer->price} AED";
 
+        // 🔍 DEBUG: Log notification attempt
+        \Log::info('Offer Response Notification Debug', [
+            'offer_id' => $offer->id,
+            'buyer_id' => $offer->buyer_id,
+            'seller_id' => $user->id,
+            'status' => $data['status'],
+            'recipient_found' => $recipient ? true : false,
+            'recipient_fcm_token' => $recipient ? ($recipient->fcm_token ? 'exists' : 'missing') : 'n/a',
+            'sender_shop_exists' => $senderShop ? true : false,
+            'notification_text' => $notificationText
+        ]);
+
         if ($recipient) {
             // ✅ Manual notification insert
-            Notification::create([
-                'type' => 'offer_response',
-                'notifiable_type' => get_class($offer->buyer),
-                'notifiable_id' => $offer->buyer_id,
-                'data' => [
-                    'title' => 'Offer Response',
-                    'body' => $notificationText,
-                    'sender_id' => $user->id,
-                    'recipient_id' => $offer->buyer_id,
-                    'offer_id' => $offer->id,
-                    'status' => $data['status'],
-                    'product_id' => $offer->product_id,   
-                    'shop' => [
-                        'id' => $senderShop->id,
-                        'name' => $senderShop->name,
-                        'slug' => $senderShop->slug,
-                        'image' => $senderShop->image_url,
-                    ],
-                ],
-            ]);
-
-            PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
-                'title' => 'Offer Response',
-                'body' => $notificationText,
-                'type' => 'offer_response',
-                'product_id' => $offer->product_id,   
-                'status' => $data['status'],
-                // 🔥 SHOP DETAILS
-                'shop' => [
-                    'id' => $senderShop->id,
-                    'name' => $senderShop->name,
-                    'slug' => $senderShop->slug,
-                    'image' => $senderShop->image_url,
-                ],
-                'sender' => [
-                    'id' => $user->id,
-                    'username' => $user->username,
-                    'avatar' => $user->avatar,
-                ],
-            ]);
-            
-            // FCM
-            if (!empty($recipient->fcm_token)) {
-                FcmHelper::send(
-                    $recipient, 
-                    'Offer Response', 
-                    $notificationText, 
-                    [
-                        'type' => 'offer_response',
-                        'offer' => [
-                            'id' => $offer->id,
-                            'price' => $offer->price,
-                            'message' => $offer->message,
-                            'status' => $offer->status,
-                            'expires_at' => $offer->expires_at->toDateTimeString(),
-                        ],
-                        'product' => [
-                            'id' => $offer->product->id,
-                            'slug' => $offer->product->slug,
-                            'images' => $offer->product->images->pluck('url')->toArray(),
-                            'price' => $offer->product->price,
-                        ],
-
-                        // 🔥 SHOP DETAILS
+            try {
+                $notification = Notification::create([
+                    'type' => 'offer_response',
+                    'notifiable_type' => get_class($offer->buyer),
+                    'notifiable_id' => $offer->buyer_id,
+                    'data' => [
+                        'title' => 'Offer Response',
+                        'body' => $notificationText,
+                        'sender_id' => $user->id,
+                        'recipient_id' => $offer->buyer_id,
+                        'offer_id' => $offer->id,
+                        'status' => $data['status'],
+                        'product_id' => $offer->product_id,   
                         'shop' => [
                             'id' => $senderShop->id,
                             'name' => $senderShop->name,
                             'slug' => $senderShop->slug,
                             'image' => $senderShop->image_url,
                         ],
-                        'sender' => [
-                            'id' => $user->id,
-                            'username' => $user->username,
-                            'avatar' => $user->avatar,
-                        ]
                     ],
-                    $offer->id,          // $id
-                    ''     // $type
-                );
+                ]);
+                
+                \Log::info('Database notification created', ['notification_id' => $notification->id]);
+            } catch (\Exception $e) {
+                \Log::error('Failed to create database notification', ['error' => $e->getMessage()]);
+            }
+
+            try {
+                PusherHelper::trigger("private-notifications.{$recipient->id}", 'new-notification', [
+                    'title' => 'Offer Response',
+                    'body' => $notificationText,
+                    'type' => 'offer_response',
+                    'product_id' => $offer->product_id,   
+                    'status' => $data['status'],
+                    // 🔥 SHOP DETAILS
+                    'shop' => [
+                        'id' => $senderShop->id,
+                        'name' => $senderShop->name,
+                        'slug' => $senderShop->slug,
+                        'image' => $senderShop->image_url,
+                    ],
+                    'sender' => [
+                        'id' => $user->id,
+                        'username' => $user->username,
+                        'avatar' => $user->avatar,
+                    ],
+                ]);
+                \Log::info('Pusher notification sent successfully', ['recipient_id' => $recipient->id]);
+            } catch (\Exception $e) {
+                \Log::error('Pusher notification failed', ['error' => $e->getMessage()]);
+            }
+            
+            // FCM
+            if (!empty($recipient->fcm_token)) {
+                \Log::info('Attempting FCM notification', ['recipient_id' => $recipient->id]);
+                try {
+                    FcmHelper::send(
+                        $recipient, 
+                        'Offer Response', 
+                        $notificationText, 
+                        [
+                            'type' => 'offer_response',
+                            'offer' => [
+                                'id' => $offer->id,
+                                'price' => $offer->price,
+                                'message' => $offer->message,
+                                'status' => $offer->status,
+                                'expires_at' => $offer->expires_at->toDateTimeString(),
+                            ],
+                            'product' => [
+                                'id' => $offer->product->id,
+                                'slug' => $offer->product->slug,
+                                'images' => $offer->product->images->pluck('url')->toArray(),
+                                'price' => $offer->product->price,
+                            ],
+
+                            // 🔥 SHOP DETAILS
+                            'shop' => [
+                                'id' => $senderShop->id,
+                                'name' => $senderShop->name,
+                                'slug' => $senderShop->slug,
+                                'image' => $senderShop->image_url,
+                            ],
+                            'sender' => [
+                                'id' => $user->id,
+                                'username' => $user->username,
+                                'avatar' => $user->avatar,
+                            ]
+                        ],
+                        $offer->id,          // $id
+                        ''     // $type
+                    );
+                    \Log::info('FCM notification sent successfully', ['recipient_id' => $recipient->id]);
+                } catch (\Exception $e) {
+                    \Log::error('FCM notification failed', ['error' => $e->getMessage()]);
+                }
+            } else {
+                \Log::info('FCM token not found for recipient', ['recipient_id' => $recipient->id]);
             } 
         }
 
