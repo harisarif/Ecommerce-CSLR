@@ -207,6 +207,8 @@ class UsersController extends Controller
 
         return redirect()->route('usersList')->with('success', 'User and Shop updated successfully');
     }
+
+    
     public function changePassword(Request $request, $id)
     {
         $user = User::findOrFail($id);

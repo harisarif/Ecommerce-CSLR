@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Currency;
+use App\Models\Shop;
 use App\Models\User;
 use App\Models\UserBrand;
 use App\Models\UserSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 
@@ -121,7 +123,7 @@ class UserController extends Controller
 
         // Eager load all relations
         $user->load([
-            // 'shop',
+            'shop',
             'sizes.appCategory',
             'sizes.size',
             'brands.brand'
@@ -154,12 +156,15 @@ class UserController extends Controller
             'full_name' => $user->full_name,
             'dob' => $user->dob,
             'billing_address' => $user->billing_address,
-            // 'shop' => $user->shop ? [
-            //     'id' => $user->shop->id,
-            //     'name' => $user->shop->name,
-            //     'slug' => $user->shop->slug,
-            //     'description' => $user->shop->description,
-            // ] : null,
+            'shop' => $user->shop ? [
+                'id' => $user->shop->id,
+                'name' => $user->shop->name,
+                'slug' => $user->shop->slug,
+                'description' => $user->shop->description,
+                'phone' => $user->shop->phone,
+                'address' => $user->shop->address,
+                'image' => $user->shop->image_url,
+            ] : null,
             'sizes' => $sizes,
             'brands' => $brands,
         ];
@@ -190,6 +195,13 @@ class UserController extends Controller
 
             'brands'                   => 'sometimes|array',
             'brands.*'                 => 'required|exists:brands,id',
+
+            // ================= SHOP =================
+            'shop.name'        => 'sometimes|string|max:255',
+            'shop.phone'       => 'sometimes|string|max:50',
+            'shop.address'     => 'sometimes|string|max:512',
+            'shop.description' => 'nullable|string',
+            'shop.image'       => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
         // ✅ Update only provided fields
@@ -229,7 +241,33 @@ class UserController extends Controller
             }
         }
 
-        $user->load(['sizes.appCategory', 'sizes.size', 'brands.brand']);
+        // ✅ Update shop if sent
+        if ($request->has('shop')) {
+            $shopData = $request->input('shop');
+            
+            // Generate slug if name is provided
+            if (isset($shopData['name'])) {
+                $shopData['slug'] = Str::slug($shopData['name']);
+            }
+
+            // Handle shop image upload
+            if ($request->hasFile('shop.image')) {
+                $file = $request->file('shop.image');
+                $filename = 'shop-' . time() . '.' . $file->getClientOriginalExtension();
+                $file->move(public_path('images/shops'), $filename);
+                $shopData['image'] = 'images/shops/' . $filename;
+            }
+
+            // Update or create shop
+            if ($user->shop) {
+                $user->shop->update($shopData);
+            } else {
+                $shopData['user_id'] = $user->id;
+                Shop::create($shopData);
+            }
+        }
+
+        $user->load(['sizes.appCategory', 'sizes.size', 'brands.brand', 'shop']);
 
         return response()->json([
             'success' => true,
