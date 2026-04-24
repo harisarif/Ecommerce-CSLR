@@ -247,7 +247,15 @@ class UserController extends Controller
             
             // Generate slug if name is provided
             if (isset($shopData['name'])) {
-                $shopData['slug'] = Str::slug($shopData['name']);
+                $slug = Str::slug($shopData['name']);
+                
+                // Make sure slug is unique
+                $existingSlugCount = Shop::where('slug', $slug)->where('id', '!=', $user->shop->id ?? 0)->count();
+                if ($existingSlugCount > 0) {
+                    $slug .= '-' . Str::random(4);
+                }
+                
+                $shopData['slug'] = $slug;
             }
 
             // Handle shop image upload
