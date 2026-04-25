@@ -205,7 +205,8 @@ class UserController extends Controller
             'brands'                   => 'sometimes|array',
             'brands.*'                 => 'required|exists:brands,id',
 
-            // ================= SHOP =================
+            // ================= SHOP (support both nested and flat) =================
+            'shop'             => 'sometimes|array',
             'shop.name'        => 'sometimes|string|max:255',
             'shop.phone'       => 'sometimes|string|max:50',
             'shop.address'     => 'sometimes|string|max:512',
@@ -251,14 +252,33 @@ class UserController extends Controller
         }
 
         // ✅ Update shop if sent
+        $hasShopNested = $request->has('shop');
+        $hasShopFlat = $request->has('shop.name') || $request->has('shop.phone') || $request->has('shop.address');
+        
         \Log::info('updateUserProfile - Shop Update Check', [
-            'has_shop' => $request->has('shop'),
+            'has_shop_nested' => $hasShopNested,
+            'has_shop_flat' => $hasShopFlat,
             'user_has_shop' => $user->shop ? true : false,
             'user_shop_id' => $user->shop ? $user->shop->id : null
         ]);
 
-        if ($request->has('shop')) {
-            $shopData = $request->input('shop');
+        if ($hasShopNested || $hasShopFlat) {
+            // Handle both nested and flat shop data structures
+            if ($hasShopNested) {
+                $shopData = $request->input('shop');
+            } else {
+                // Convert flat structure to nested
+                $shopData = [
+                    'name' => $request->input('shop.name'),
+                    'phone' => $request->input('shop.phone'),
+                    'address' => $request->input('shop.address'),
+                    'description' => $request->input('shop.description'),
+                ];
+                // Remove null values
+                $shopData = array_filter($shopData, function($value) {
+                    return $value !== null;
+                });
+            }
             
             \Log::info('updateUserProfile - Shop Data Received', [
                 'shop_data' => $shopData,
