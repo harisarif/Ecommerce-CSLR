@@ -184,9 +184,9 @@ class UserController extends Controller
         \Log::info('updateUserProfile - Request Data', [
             'user_id' => $user->id,
             'all_request_data' => $request->all(),
-            'has_shop_data' => $request->has('shop'),
+            'has_shop_data' => $request->has('shop_name') || $request->has('shop_phone') || $request->has('shop_address') || $request->has('shop_description'),
             'shop_data' => $request->input('shop'),
-            'has_shop_image' => $request->hasFile('shop.image')
+            'has_shop_image' => $request->hasFile('shop_image')
         ]);
 
         // ✅ Conditional validation
@@ -205,13 +205,11 @@ class UserController extends Controller
             'brands'                   => 'sometimes|array',
             'brands.*'                 => 'required|exists:brands,id',
 
-            // ================= SHOP (support both nested and flat) =================
-            'shop'             => 'sometimes|array',
-            'shop.name'        => 'sometimes|string|max:255',
-            'shop.phone'       => 'sometimes|string|max:50',
-            'shop.address'     => 'sometimes|string|max:512',
-            'shop.description' => 'nullable|string',
-            'shop.image'       => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'shop_name'        => 'sometimes|string|max:255',
+            'shop_phone'       => 'sometimes|string|max:50',
+            'shop_address'     => 'sometimes|string|max:512',
+            'shop_description' => 'nullable|string',
+            'shop_image'       => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
         // ✅ Update only provided fields
@@ -252,44 +250,37 @@ class UserController extends Controller
         }
 
         // ✅ Update shop if sent
-        $hasShopNested = $request->has('shop');
-        $hasShopFlat = $request->has('shop.name') || $request->has('shop.phone') || $request->has('shop.address');
+        $hasShopData = $request->has('shop_name') || $request->has('shop_phone') || $request->has('shop_address') || $request->has('shop_description');
         
         \Log::info('updateUserProfile - Shop Update Check', [
-            'has_shop_nested' => $hasShopNested,
-            'has_shop_flat' => $hasShopFlat,
+            'has_shop_data' => $hasShopData,
+            'has_shop_name' => $request->has('shop_name'),
+            'has_shop_phone' => $request->has('shop_phone'),
+            'has_shop_address' => $request->has('shop_address'),
             'user_has_shop' => $user->shop ? true : false,
             'user_shop_id' => $user->shop ? $user->shop->id : null
         ]);
 
-        if ($hasShopNested || $hasShopFlat) {
-            // Handle both nested and flat shop data structures
-            if ($hasShopNested) {
-                $shopData = $request->input('shop');
-            } else {
-                // Convert flat structure to nested
-                $rawShopData = [
-                    'name' => $request->input('shop.name'),
-                    'phone' => $request->input('shop.phone'),
-                    'address' => $request->input('shop.address'),
-                    'description' => $request->input('shop.description'),
-                ];
-                
-                \Log::info('updateUserProfile - Raw Shop Data Before Filter', [
-                    'raw_shop_data' => $rawShopData,
-                    'shop_name_value' => $request->input('shop.name'),
-                    'shop_phone_value' => $request->input('shop.phone'),
-                    'shop_address_value' => $request->input('shop.address'),
-                    'shop_description_value' => $request->input('shop.description')
-                ]);
-                
-                // Remove null and empty values, but keep valid strings
-                $shopData = array_filter($rawShopData, function($value) {
-                    return $value !== null && $value !== '';
-                });
-            }
+        if ($hasShopData) {
+            // Collect shop data from underscore notation
+            $shopData = [
+                'name' => $request->input('shop_name'),
+                'phone' => $request->input('shop_phone'),
+                'address' => $request->input('shop_address'),
+                'description' => $request->input('shop_description'),
+            ];
             
             \Log::info('updateUserProfile - Shop Data Received', [
+                'shop_data' => $shopData,
+                'shop_data_keys' => array_keys($shopData ?? [])
+            ]);
+            
+            // Remove null and empty values, but keep valid strings
+            $shopData = array_filter($shopData, function($value) {
+                return $value !== null && $value !== '';
+            });
+            
+            \Log::info('updateUserProfile - Shop Data After Filter', [
                 'shop_data' => $shopData,
                 'shop_data_keys' => array_keys($shopData ?? [])
             ]);
@@ -317,9 +308,9 @@ class UserController extends Controller
             }
 
             // Handle shop image upload
-            if ($request->hasFile('shop.image')) {
+            if ($request->hasFile('shop_image')) {
                 \Log::info('updateUserProfile - Shop Image Upload Started');
-                $file = $request->file('shop.image');
+                $file = $request->file('shop_image');
                 $filename = 'shop-' . time() . '.' . $file->getClientOriginalExtension();
                 $file->move(public_path('images/shops'), $filename);
                 $shopData['image'] = 'images/shops/' . $filename;
