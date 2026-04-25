@@ -180,6 +180,15 @@ class UserController extends Controller
     {
         $user = JWTAuth::parseToken()->authenticate();
 
+        // 🔍 DEBUG: Log initial request data
+        \Log::info('updateUserProfile - Request Data', [
+            'user_id' => $user->id,
+            'all_request_data' => $request->all(),
+            'has_shop_data' => $request->has('shop'),
+            'shop_data' => $request->input('shop'),
+            'has_shop_image' => $request->hasFile('shop.image')
+        ]);
+
         // ✅ Conditional validation
         $validated = $request->validate([
             'first_name'      => 'sometimes|required|string|max:255',
@@ -242,17 +251,37 @@ class UserController extends Controller
         }
 
         // ✅ Update shop if sent
+        \Log::info('updateUserProfile - Shop Update Check', [
+            'has_shop' => $request->has('shop'),
+            'user_has_shop' => $user->shop ? true : false,
+            'user_shop_id' => $user->shop ? $user->shop->id : null
+        ]);
+
         if ($request->has('shop')) {
             $shopData = $request->input('shop');
+            
+            \Log::info('updateUserProfile - Shop Data Received', [
+                'shop_data' => $shopData,
+                'shop_data_keys' => array_keys($shopData ?? [])
+            ]);
             
             // Generate slug if name is provided
             if (isset($shopData['name'])) {
                 $slug = Str::slug($shopData['name']);
                 
+                \Log::info('updateUserProfile - Slug Generation', [
+                    'original_name' => $shopData['name'],
+                    'generated_slug' => $slug
+                ]);
+                
                 // Make sure slug is unique
                 $existingSlugCount = Shop::where('slug', $slug)->where('id', '!=', $user->shop->id ?? 0)->count();
                 if ($existingSlugCount > 0) {
                     $slug .= '-' . Str::random(4);
+                    \Log::info('updateUserProfile - Slug Modified for Uniqueness', [
+                        'final_slug' => $slug,
+                        'existing_count' => $existingSlugCount
+                    ]);
                 }
                 
                 $shopData['slug'] = $slug;
@@ -260,18 +289,44 @@ class UserController extends Controller
 
             // Handle shop image upload
             if ($request->hasFile('shop.image')) {
+                \Log::info('updateUserProfile - Shop Image Upload Started');
                 $file = $request->file('shop.image');
                 $filename = 'shop-' . time() . '.' . $file->getClientOriginalExtension();
                 $file->move(public_path('images/shops'), $filename);
                 $shopData['image'] = 'images/shops/' . $filename;
+                \Log::info('updateUserProfile - Shop Image Uploaded', [
+                    'filename' => $filename,
+                    'image_path' => $shopData['image']
+                ]);
             }
 
+            \Log::info('updateUserProfile - Final Shop Data Before Update', [
+                'final_shop_data' => $shopData,
+                'user_has_existing_shop' => $user->shop ? true : false
+            ]);
+
             // Update or create shop
-            if ($user->shop) {
-                $user->shop->update($shopData);
-            } else {
-                $shopData['user_id'] = $user->id;
-                Shop::create($shopData);
+            try {
+                if ($user->shop) {
+                    \Log::info('updateUserProfile - Updating Existing Shop', [
+                        'shop_id' => $user->shop->id,
+                        'update_data' => $shopData
+                    ]);
+                    $result = $user->shop->update($shopData);
+                    \Log::info('updateUserProfile - Shop Update Result', ['result' => $result]);
+                } else {
+                    \Log::info('updateUserProfile - Creating New Shop', [
+                        'user_id' => $user->id,
+                        'create_data' => $shopData
+                    ]);
+                    $newShop = Shop::create($shopData);
+                    \Log::info('updateUserProfile - New Shop Created', ['shop_id' => $newShop->id]);
+                }
+            } catch (\Exception $e) {
+                \Log::error('updateUserProfile - Shop Update Failed', [
+                    'error' => $e->getMessage(),
+                    'shop_data' => $shopData
+                ]);
             }
         }
 
