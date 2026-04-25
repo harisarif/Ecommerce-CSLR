@@ -268,15 +268,24 @@ class UserController extends Controller
                 $shopData = $request->input('shop');
             } else {
                 // Convert flat structure to nested
-                $shopData = [
+                $rawShopData = [
                     'name' => $request->input('shop.name'),
                     'phone' => $request->input('shop.phone'),
                     'address' => $request->input('shop.address'),
                     'description' => $request->input('shop.description'),
                 ];
-                // Remove null values
-                $shopData = array_filter($shopData, function($value) {
-                    return $value !== null;
+                
+                \Log::info('updateUserProfile - Raw Shop Data Before Filter', [
+                    'raw_shop_data' => $rawShopData,
+                    'shop_name_value' => $request->input('shop.name'),
+                    'shop_phone_value' => $request->input('shop.phone'),
+                    'shop_address_value' => $request->input('shop.address'),
+                    'shop_description_value' => $request->input('shop.description')
+                ]);
+                
+                // Remove null and empty values, but keep valid strings
+                $shopData = array_filter($rawShopData, function($value) {
+                    return $value !== null && $value !== '';
                 });
             }
             
